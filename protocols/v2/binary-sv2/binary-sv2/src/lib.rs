@@ -18,6 +18,7 @@ mod test {
         use super::*;
         use core::convert::TryInto;
 
+        /// DOC COMMENT
         #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
         struct Test<'decoder> {
             #[cfg_attr(feature = "with_serde", serde(borrow))]
