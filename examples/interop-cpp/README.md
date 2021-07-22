@@ -94,7 +94,7 @@ When C++ take ownership of a Sv2 message the message must be manually dropped.
 
 #### Enums
 In order to pattern match against a rust defined enum from C++:
-```c
+```
 CResult < CSv2Message, Sv2Error > frame = next_frame(decoder);
 
 switch (frame.tag) {
