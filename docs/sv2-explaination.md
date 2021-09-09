@@ -34,19 +34,15 @@ RRQ: This may not go here?
 
 ## Terminology
 - Mining Device: Hardware performing the hash, typically a Bitcoin ASIC
-
 - Miner: The individual running Mining Device(s).
-
 - Hashrate Consumer (HC): Upstream node to which shares are submitted to, typically a pool
-
 - Block Template: Block header data fields to be mined over. Includes the Merkle root of the transaction set.
-
 - Mining Proxy: An intermediary node that sits between the Mining Devices and the HC that aggregates connections to increase bandwidth efficiency. The Mining Proxy provides some optional functionality including the ability to monitor the health and performance of the Mining Devices. RRQ: What other extra functionality does the Mining Proxy provide? How is the health of a miner evaluated? Just whether it is on, low, off, or disabled? How is the health different from the performance?
 RRTODO: List all the modes - Header-only mining, what are the other modes called?
-
 - Job Negotiator (JN): A node which negotiations with a HC on behalf of one or more Mining Devices to determine which jobs the Mining Devices will work on. This node also communicates with the BTP to select the transaction set, then sends the jobs to the Mining Proxies to be distributed the Mining Devices.
-
 - Block Template Provider (BTP): A Bitcoin node with Stratum V2 compatible RPC commands to allow for transaction selection by the miner. A common example is `bitcoind`.
+- Upstream: Pool infrastructure belonging to the HC encompassing the server-side Mining Protocol and the server-side Job Negotiation Protocol.
+- Downstream: Mining infrastructure encompassing the client-side Mining Protocol, client-side Job Negotiation Protocol, Job Distribution Protocol, Template Distribution Protocol, and Mining Devices.
 
 # Stratum V2 Protocols
 ## Mining Protocol
@@ -149,3 +145,7 @@ This simplified means of mining requires the HC to perform most of the block tem
 ## Multiplexing
 
 ## Native Version Rolling
+
+## Vendor Specific Extensions
+
+## Swarm Algorithm
