@@ -150,6 +150,9 @@ This simplified means of mining requires the Pool Service to perform most of the
 
 ## Job Distribution Latency
 
+## Protocol Security
+AEAD, Noise Protocol framework, certificate formet, URL scheme & Pool Authority Key
+
 ## Empty Block Mining Elimination
 
 ## Multiplexing
@@ -159,3 +162,8 @@ This simplified means of mining requires the Pool Service to perform most of the
 ## Vendor Specific Extensions
 
 ## Swarm Algorithm
+
+## Misc (items that need a home, may not include)
+- Common protocol connection messages
+- Reconnecting downstream nodes
+- Error codes
