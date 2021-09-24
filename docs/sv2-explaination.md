@@ -79,13 +79,16 @@ Specifically, the extranonce feature is unused such that the coinbase transactio
 The following scenarios describe how a standard channel is typically used.  Note that in all of the following standard channel scenarios, the Mining Device firmware MUST be Stratum V2 compatible.
 
 1. Scenario 1: The miner delegates transaction selection to the Pool Service and the Mining Device firmware is Stratum V2 compatible and supports an encrypted connection directly to the Pool Service. In this case, no Proxy is required as the Mining Device firmware supports the required messages to establish a direct connection to the Pool Service and no Job Negotiator is required as it is up to the Pool Service to select the transactions.
-It is important to note that it is NOT a requirement of the Stratum V2 protocol for Stratum V2 compatible firmware to support a direct, encrypted connection to the Pool Service.
+
+This scenario most closely mirrors today's mining infrastructure landscape and may be appealing to miners who are wiling to forgo some of the core benefits of Stratum V2 (like transaction selection) in favor of simpler infrastructure requirements as no Proxy server is required.
+
 
   ```
                     standard
                     channel
     Mining Device ------------> Pool Service
   ```
+  It is important to note that it is NOT a requirement of the Stratum V2 protocol for Stratum V2 compatible firmware to support a direct, encrypted connection to the Pool Service.
 
 2. Scenario 2: The miner delegates transaction selection to the Pool Service and the Mining Device firmware is Stratum V2 compatible but does NOT support an encrypted connection directly to the Pool Service. In this case, a Proxy is required to establish an encrypted connection between the Mining Device and the Pool Service. Again, no Job Negotiator is required as it is up to the Pool Service to select the transactions.
 
@@ -95,7 +98,7 @@ It is important to note that it is NOT a requirement of the Stratum V2 protocol 
     Mining Device ------------> Proxy* ------------> Pool Service
 
 
-  *Proxy: Mining Proxy only
+    *Proxy: Mining Proxy only
   ```
 
 3. Scenario 3: The miner elects to perform their own transaction set selection and the Mining Device firmware is Stratum V2 compatible. Because the miner is choosing their own transaction set, a Proxy that includes the Job Negotiator is required, implying that it does not matter if the Mining Device firmware supports an encrypted connection directly with the Pool Service since a Proxy is required regardless. 
@@ -106,5 +109,22 @@ It is important to note that it is NOT a requirement of the Stratum V2 protocol 
     Mining Device ------------> Proxy* ------------> Pool Service
 
 
-  *Proxy: Mining Proxy and Job Negotiator
+    *Proxy: Mining Proxy and Job Negotiator
   ```
+
+In any of the above scenarios, more than one Mining Device can be (and most commonly are) used.
+This leads to a situation where there is a dedicated connection to the Pool Service for each Mining Device, resulting in unnecessary bandwidth consumption.
+
+  ```
+                        standard                  standard
+                        channel                   channel
+    Mining Device 0   ------------>  +-------+  ------------>  +--------------+
+    Mining Device 1   ------------>  |       |  ------------>  |              |
+          ...                        |       |                 |              |
+    Mining Device n/2 ------------>  | Proxy |  ------------>  | Pool Service |
+          ...                        |       |                 |              |
+    Mining Device n-1 ------------>  |       |  ------------>  |              |
+    Mining Device n   ------------>  +-------+  ------------>  +--------------+
+  ```
+
+While this may be an acceptable trade off in scenario 1 given the lighter infrastructure requirements when a Proxy is not used, it may be less acceptable in the second and third scenarios where a miner is operating a Proxy server.Fortunately, Stratum V2 provides means to bundle multiple connections into a single connection to the Pool Service via group channels.
