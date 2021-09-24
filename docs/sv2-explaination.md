@@ -86,16 +86,20 @@ This scenario most closely mirrors today's mining infrastructure landscape and m
   ```
                     standard
                     channel
-    Mining Device ------------> Pool Service
+                                +--------------+
+    Mining Device ------------> | Pool Service |
+                                +--------------+
   ```
   It is important to note that it is NOT a requirement of the Stratum V2 protocol for Stratum V2 compatible firmware to support a direct, encrypted connection to the Pool Service.
 
 2. Scenario 2: The miner delegates transaction selection to the Pool Service and the Mining Device firmware is Stratum V2 compatible but does NOT support an encrypted connection directly to the Pool Service. In this case, a Proxy is required to establish an encrypted connection between the Mining Device and the Pool Service. Again, no Job Negotiator is required as it is up to the Pool Service to select the transactions.
 
   ```
-                    standard            standard
-                    channel             channel
-    Mining Device ------------> Proxy* ------------> Pool Service
+                    standard                 standard
+                    channel                  channel
+                                +--------+               +--------------+
+    Mining Device ------------> | Proxy* | ------------> | Pool Service |
+                                +--------+               +--------------+
 
 
     *Proxy: Mining Proxy only
@@ -104,9 +108,11 @@ This scenario most closely mirrors today's mining infrastructure landscape and m
 3. Scenario 3: The miner elects to perform their own transaction set selection and the Mining Device firmware is Stratum V2 compatible. Because the miner is choosing their own transaction set, a Proxy that includes the Job Negotiator is required, implying that it does not matter if the Mining Device firmware supports an encrypted connection directly with the Pool Service since a Proxy is required regardless. 
 
   ```
-                    standard            standard
-                    channel             channel
-    Mining Device ------------> Proxy* ------------> Pool Service
+                    standard                 standard
+                    channel                  channel
+                                +--------+               +--------------+
+    Mining Device ------------> | Proxy* | ------------> | Pool Service |
+                                +--------+               +--------------+
 
 
     *Proxy: Mining Proxy and Job Negotiator
@@ -127,4 +133,56 @@ This leads to a situation where there is a dedicated connection to the Pool Serv
     Mining Device n   ------------>  +-------+  ------------>  +--------------+
   ```
 
-While this may be an acceptable trade off in scenario 1 given the lighter infrastructure requirements when a Proxy is not used, it may be less acceptable in the second and third scenarios where a miner is operating a Proxy server.Fortunately, Stratum V2 provides means to bundle multiple connections into a single connection to the Pool Service via group channels.
+While this may be an acceptable trade off in scenario 1 given the lighter infrastructure requirements when a Proxy is not used, it may be less acceptable in the second and third scenarios where a miner is operating a Proxy server. Fortunately, Stratum V2 provides means to bundle multiple connections into a single connection to the Pool Service via group channels.
+
+### Group Channel
+A group channel exists between the Proxy and the Pool Service and is a group of the standard channels between the Mining Device and the Proxy.
+Its purpose is to reduce the data transfer between the Pool Service and the Proxy in the very common case of miner operating multiple Mining Devices, solving for the problem of each Mining Device requiring its own connection to the Pool Service as discussed in the [Standard Channel subsection](https://github.com/rrybarczyk/stratum/blob/bitcoin-core-pr-doc/docs/sv2-explaination.md#standard-channel) above.
+
+From the perspective of the Mining Device, nothing changes when using a group channel. The Mining Devices still only interprets standard channel messages sent by the Proxy and is still performing header-only mining (as defined by a standard channel). The Proxy is responsible for accepting the messages from the Mining Devices operating on their individual standard channels, but then aggregates the connections into an addressable, single group channel connection directly to the Pool Service.
+
+Group channels can also be used to give a miner more control over their search space even though the Mining Devices communicate over standard channels (implying that they are performing header-only mining). In this case, the Proxy accepts jobs over the group channel that it has opened with the Pool Service. The Proxy can modify the search space (e.g. the extranonce), then formats the job messages to be compatible with the standard channel messages that the Mining Devices understand. As the Mining Devices submit their work to the Proxy, which aggregates the messages and forwards the completed jobs on the group channel connected to the Pool Service.
+<!-- RR TODO: more info on what can be done specifically with group channels -->
+
+The following scenarios describe how a group channel is typically used. Note that in all of the following group channel scenarios, the Mining Device firmware MUST be Stratum V2 compatible (as the Mining Devices themselves are still using the standard channel, it is only the Proxy and Pool Service that understand and use the group channel). In both scenarios, a miner can choose the degree in which they control their search space (from little control with header-only mining, to the fine-tune control of modifying fields such as the Merkle root path).
+
+1. Scenario 1: Several Mining Devices are each connected to the Proxy by individual standard channels that are then aggregated by the Proxy into a single group channel with the Pool Service. The miner delegates transaction selection to the Pool Service and the Mining Device firmware is Stratum V2 compatible but does NOT support an encrypted connection directly to the Pool Service. In this case, a Proxy is required to establish an encrypted connection between the Mining Device and the Pool Service. The Proxy accepts a standard channel connections from each Mining Device and aggregates them into a single group channel connected to the Pool Service. No Job Negotiator is required as it is up to the Pool Service to select the transactions.
+
+  ```
+                        standard                   group
+                        channel                    channel
+    Mining Device 0   ------------>  +--------+                 +--------------+
+    Mining Device 1   ------------>  |        |                 |              |
+          ...                        |        |                 |              |
+    Mining Device n/2 ------------>  | Proxy* |  ------------>  | Pool Service |
+          ...                        |        |                 |              |
+    Mining Device n-1 ------------>  |        |                 |              |
+    Mining Device n   ------------>  +--------+                 +--------------+
+
+    *Proxy: Mining Proxy only
+  ```
+
+2. Scenario 2: Several Mining Devices are each connected to the Proxy by individual standard channels that are then aggregated by the Proxy into a single group channel with the Pool Service. The miner elects to perform their own transaction set selection and the Mining Device firmware is Stratum V2 compatible. The Proxy is required for two reasons in this scenario. The first is again because the miner is electing to choose their own transaction set, therefore a Proxy that includes the Job Negotiator is required. The second reason the Proxy is required is to perform the Mining Device standard channel aggregation into a group channel connected to the Pool Service.
+
+  ```
+                        standard                   group
+                        channel                    channel
+    Mining Device 0   ------------>  +--------+                 +--------------+
+    Mining Device 1   ------------>  |        |                 |              |
+          ...                        |        |                 |              |
+    Mining Device n/2 ------------>  | Proxy* |  ------------>  | Pool Service |
+          ...                        |        |                 |              |
+    Mining Device n-1 ------------>  |        |                 |              |
+    Mining Device n   ------------>  +--------+                 +--------------+
+
+    *Proxy: Mining Proxy and Job Negotiator
+  ```
+
+### Extended Channel
+The standard and group channels offer the highest performance, but require the Mining Device firmware to be Stratum V2 compatible. While the long term goal is for the entire mining industry to move away from Stratum V1 in favor of Stratum V2, it is important that the Stratum V2 protocol provides support for this transitional period. Extended channels are intended to be used for this purpose. It defines a communication channel in which a Mining Device with Stratum V1 compatible firmware can participate with Pool Services that operate the Stratum V2 protocol.
+
+Extended channels give the miner fine tune control over their search space, not as a means to entice miners to use this channel over an extended channel, but because of the requirements involved in performing the translation between Stratum V1 and Stratum V2 messages. This is the most bandwidth-heavy way to mine (although it is still more efficient than that of Stratum V1) and it is highly encouraged for miners to instead deploy Stratum V2 compatible firmware on their devices and use the group channel method instead. To further discourage the use of Stratum V1 compatible firmware, extended channels cannot be grouped.
+
+The two most common scenarios of when extended channels are used closely match the second and third scenario of the standard channel discussed in the [Standard Channel section](https://github.com/rrybarczyk/stratum/blob/bitcoin-core-pr-doc/docs/sv2-explaination.md#standard-channel) detailed above, with the standard channels between the Mining Device(s) and the Proxy replaced by extended channels. The channel between the Proxy and the Pool Service remains to be a standard channel.
+<!-- RR Q: Is this right? When using extended channels, is the channel between the Proxy and the Pool Service an extended channel or still a standard one? -->
+
