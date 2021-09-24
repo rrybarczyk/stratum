@@ -2,6 +2,8 @@
 Since its inception in late 2012, the Stratum V1 mining protocol has served a vital role in the Bitcoin mining ecosystem. However the mining landscape as changed extensively in the last decade and a major overhaul to the core mining protocol is well overdue. 
 Stratum V2 is positioned as the next iteration of Stratum V1, providing major upgrades from an efficiency, security, and decentralization standpoint.
 
+The purpose of this PR is to provide an understanding of the Stratum V2 protocol with the goal of getting the Template Provider logic required to support Stratum V2, included in Bitcoin Core.
+
 ## Design Goals
 This section defines the high-level design goals of the Stratum V2 protocol.
 All design goals are centered around increasing security, decentralization, and efficiency.
@@ -14,13 +16,14 @@ All design goals are centered around increasing security, decentralization, and 
 ## Important Terminology
 This section briefly defines important terms that are used throughout this summary.
 
-- Unless otherwise stated, "server-side" refers to the Pool Service and "client-side" refers to a miner controlled downstream role. There are some scenarios in which the miner may not control all roles implemented downstream of the Pool Service, like if another entity was operating the Template Provider (Bitcoin node), but these are less common.
+- Unless otherwise stated, "server-side" refers to the Pool Service and "client-side" refers to a miner controlled downstream role (all roles are defined in the [Role Definitions subsection](https://github.com/rrybarczyk/stratum/blob/bitcoin-core-pr-doc/docs/sv2-explaination.md#role-definitions-wip) below). There are some scenarios in which the miner may not control all roles implemented downstream of the Pool Service, like if another entity was operating the Template Provider (Bitcoin node), but these are less common.
 
-- "Miner" means the organization or individual (mining farm or mining operator) that owns the Mining Device(s) (defined below) and makes the decisions as to how to configure their Stratum V2 implementation.
+- "Miner" means the organization or individual (mining farm or mining operator) that owns the Mining Device(s) and makes the decisions as to how to configure their Stratum V2 implementation.
 
 - "Proxy" is used as an umbrella term to encompass the roles that sit between the most downstream Mining Device(s) and the most upstream Pool Service. Depending on the configuration chosen by the miner, the term "Proxy" can take on one of two forms:
   1. The Proxy encompasses the Mining Proxy (the implementation of the Mining Protocol) only. This is true when the miner delegates transaction selection to the Pool Service. In this case, the term "Proxy" is synonymous with "Mining Proxy".
   2. The Proxy encompasses both the Mining Proxy and the Job Negotiator (the implementation of the Job Negotiation Protocol). This is true when the miner elects to perform their own transaction selection. In this case the term "Proxy" is synonymous with "Mining Proxy and the Job Negotiator".
+
   It important to pay close attention to the context in which "Proxy" is being used in order to discern between scenarios in which the Job Negotiator is either included or excluded.
 
 <!-- - Block Template RR TODO -->
@@ -31,25 +34,23 @@ This section briefly defines important terms that are used throughout this summa
 ## Protocol Definitions
 The Stratum V2 protocol is split into four subprotocols, allowing for a variety of flexible use cases to suit the needs of different miners. These four subprotocols are defined as follows:
 
-1. Mining Protocol: The Mining Protocol defines the means of communication between the Mining Device and the Pool Service. In its simplest form, the Mining Protocol defines the core mining messages passed between Mining Device(s) (with Stratum V2 compatible firmware) and the Pool Service. These messages perform the familiar tasks associated with mining: opening the connection, accepting new jobs, and submitting work shares. Depending on the miner-chosen configuration however, the Mining Protocol is also used for optional features that allow a miner to make the most out of the Stratum V2 protocol benefits. These features include Mining Device connection aggregation (to reduce bandwidth consumption), translation between Stratum V1 compatible Mining Devices and Stratum V2 compatible Pool Services (so miners can still employ Mining Device(s) with Stratum V1 compatible firmware with Stratum V2 compatible Pool Services), and communication with the Job Negotiator (in the case where the miner elects to perform their own transaction selection). While the Pool Service must be configured to support all of these optional features, whether the miner implements them is optional. Possible configurations are discussed throughout the summary.
+1. The **Mining Protocol** defines the means of communication between the Mining Device and the Pool Service. In its simplest form, the Mining Protocol defines the core mining messages passed between Mining Device(s) (with Stratum V2 compatible firmware) and the Pool Service. These messages perform the familiar tasks associated with mining: opening the connection, accepting new jobs, and submitting work shares. Depending on the miner-chosen configuration however, the Mining Protocol is also used for optional features that allow a miner to make the most out of the Stratum V2 protocol benefits. These features include Mining Device connection aggregation (to reduce bandwidth consumption), translation between Stratum V1 compatible Mining Devices and Stratum V2 compatible Pool Services (so miners can still employ Mining Device(s) with Stratum V1 compatible firmware with Stratum V2 compatible Pool Services), and communication with the Job Negotiator (in the case where the miner elects to perform their own transaction selection). While the Pool Service must be configured to support all of these optional features, whether the miner implements them is optional. Possible configurations are discussed throughout the summary.
 The server-side Mining Protocol MUST be implemented by the Pool Service, the Mining Proxy (defined below) role (if used) MUST implement the client-side Mining Protocol that communicates with the server-side Pool Service AND the server-side Mining Protocol that communicates with the Mining Device. Finally, the Mining Device MUST implement the client-side Mining Proxy role.
-2. Job Negotiation Protocol: The Job Negotiation Protocol is used when the miner elects to perform their own transaction selection. In this case, the Pool Service must agree to the miner selected transaction set, requiring some back and forth communication between the Pool Service and the Proxy. In this way, the process of agreeing on a transaction set is a kind of negotiation, hence the name Job Negotiation Protocol.
+2. The **Job Negotiation Protocol** is used when the miner elects to perform their own transaction selection. In this case, the Pool Service must agree to the miner selected transaction set, requiring some back and forth communication between the Pool Service and the Proxy. In this way, the process of agreeing on a transaction set is a kind of negotiation, hence the name Job Negotiation Protocol.
 The Job Negotiation Protocol MUST be implemented on the server-side by the Pool Service, and MAY be implemented on the client-side by the Job Negotiation role (defined below).
-3. Template Distribution Protocol is used only when a miner elects to perform their own transaction set and defines the means of communication between the Job Negotiation Protocol and the Block Template Provider (a Bitcoin node, e.g. `bitcoind`) to extract information about the next candidate block.
+3. The **Template Distribution Protocol** is used only when a miner elects to perform their own transaction set and defines the means of communication between the Job Negotiation Protocol and the Block Template Provider (a Bitcoin node, e.g. `bitcoind`) to extract information about the next candidate block.
 The Template Distribution Protocol MUST be implemented by both the Job Negotiator and the Template Distributor (defined below) roles.
-4. Job Distribution Protocol is used only when a miner elects to perform their own transaction set and defines the means of communication between the Mining Proxy and the Job Negotiator. This protocol compliments the Job Negotiation Protocol and is responsible for pass the newly negotiated block template to the Mining Proxy which then forwards the work to the interested Mining Device(s).
+4. The **Job Distribution Protocol** is used only when a miner elects to perform their own transaction set and defines the means of communication between the Mining Proxy and the Job Negotiator. This protocol compliments the Job Negotiation Protocol and is responsible for pass the newly negotiated block template to the Mining Proxy which then forwards the work to the interested Mining Device(s).
 The Job Distribution Protocol MUST be implemented by the Mining Proxy and the Job Negotiator roles.
 
 ## Role Definitions [WIP]
 There are five components (types of software or hardware), referred to as roles, that implement these protocols. The five roles are defined as follows:
-1. Mining Device: The Mining Device is most downstream role and is the physical hardware performing the hash (typically a Bitcoin ASIC).
-2. Pool Service: The Pool Service is the most upstream role and is responsible for producing jobs (for those not negotiating jobs via the Job Negotiation Protocol), validating shares, and ensuring blocks found by clients are propagated through the network (though clients which have full block templates MUST also propagate blocks into the Bitcoin P2P network). In order for the downstream nodes to use Stratum V2, the Pool Service MUST support Stratum V2. 
-3. Mining Proxy (optional): The Mining Proxy is an implementation of the Mining Protocol, which is the intermediary between the downstream Mining Device(s) and the upstream Pool Service. 
-
-4. The Job Negotiation is the client-side implementation of the Job Negotiation Protocol.
-
-4. Job Negotiator (optional): The Job Negotiator is the implementation of the Job Negotiation Protocol and sits "level" with the Mining Proxy in between the downstream Mining Device(s) and the upstream Pool Service. The server-side Job Negotiation Protocol must be implemented by the Pool Service, but the client-side Job Negotiator is optionally used fora miner selected transaction set. The client-side Job Negotiator 
-5. Template Provider (optional)
+1. The **Mining Device** is most downstream role and is the physical hardware performing the hash (typically a Bitcoin ASIC).
+2. The **Pool Service** is the most upstream role and is responsible for producing jobs (for those not negotiating jobs via the Job Negotiation Protocol), validating shares, and ensuring blocks found by clients are propagated through the network (though clients which have full block templates MUST also propagate blocks into the Bitcoin P2P network). In order for the downstream nodes to use Stratum V2, the Pool Service MUST support Stratum V2. 
+3. The **Mining Proxy** is an implementation of the Mining Protocol, which is the intermediary between the downstream Mining Device(s) and the upstream Pool Service. 
+4. The **Job Negotiator** is the implementation of the Job Negotiation Protocol and sits "level" with the Mining Proxy in between the downstream Mining Device(s) and the upstream Pool Service. The server-side Job Negotiation Protocol must be implemented by the Pool Service, but the client-side Job Negotiator is optionally used fora miner selected transaction set. The client-side Job Negotiator 
+5. The **Template Provider** sits downstream of the Job Negotiator and is a Bitcoin node with Stratum V2 compatible RPC commands to allow for miner transaction selection.
+<!-- RR TODO: better template provider definition? -->
 
 ## Communication Channels
 
