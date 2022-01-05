@@ -120,17 +120,17 @@ async fn main() {
             )))
         })
         .collect();
-    let mut upsteam_mining_nodes = UpstreamMiningNodes {
+    let mut upstream_mining_nodes = UpstreamMiningNodes {
         nodes: upstream_mining_nodes,
     };
-    upsteam_mining_nodes.scan().await;
+    upstream_mining_nodes.scan().await;
 
     // Wait for downstream connection
     let socket = SocketAddr::new(
         IpAddr::from_str(&config.listen_address).unwrap(),
         config.listen_mining_port,
     );
-    crate::lib::downstream_mining::listen_for_downstream_mining(socket, upsteam_mining_nodes).await
+    crate::lib::downstream_mining::listen_for_downstream_mining(socket, upstream_mining_nodes).await
 }
 
 #[cfg(test)]
