@@ -25,12 +25,16 @@
 //! A Downstream that signal the capacity to handle group channels can open more than one channel.
 //! A Downstream that signal the incapacity to handle group channels can open only one channel.
 //!
+mod error;
 mod lib;
-use std::net::{IpAddr, SocketAddr};
+use error::Result;
+use std::{
+    net::{IpAddr, SocketAddr},
+    str::FromStr,
+};
 
 use lib::upstream_mining::{UpstreamMiningNode, UpstreamMiningNodes};
 use serde::Deserialize;
-use std::str::FromStr;
 
 // TODO make them configurable via flags or config file
 pub const MAX_SUPPORTED_VERSION: u16 = 2;
@@ -60,35 +64,50 @@ impl Default for Id {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, PartialEq, Deserialize)]
 pub struct UpstreamValues {
     address: String,
     port: u16,
     pub_key: [u8; 32],
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, PartialEq, Deserialize)]
 pub struct Config {
     upstreams: Vec<UpstreamValues>,
     listen_address: String,
     listen_mining_port: u16,
 }
 
-/// 1. the proxy scan all the upstreams and map them
-/// 2. donwstream open a connetcion with proxy
-/// 3. downstream send SetupConnection
-/// 4. a mining_channle::Upstream is created
-/// 5. upstream_mining::UpstreamMiningNodes is used to pair this downstream with the most suitable
+/// Reads and returns file found at `path`
+fn read_file(path: String) -> Result<String> {
+    let contents = std::fs::read_to_string(&path)?;
+    Ok(contents)
+}
+
+/// Reads proxy-config.toml file containing mock proxy config data, which is the miner's
+/// configuration file.
+fn read_config(path: String) -> Result<Config> {
+    let config_contents = read_file(path)?;
+    let config = toml::from_str(&config_contents)?;
+
+    Ok(config)
+}
+
+/// 1. The proxy scan all the upstreams points provided by the proxy-config.toml file and maps them
+/// 2. Downstream open a connection with proxy
+/// 3. Downstream send SetupConnection
+/// 4. A mining_channel::Upstream is created
+/// 5. Upstream_mining::UpstreamMiningNodes is used to pair this downstream with the most suitable
 ///    upstream
-/// 6. mining_channle::Upstream create a new downstream_mining::DownstreamMiningNode embedding
+/// 6. Mining_channel::Upstream create a new downstream_mining::DownstreamMiningNode embedding
 ///    itself in it
-/// 7. normal operation between the paired downstream_mining::DownstreamMiningNode and
+/// 7. Normal operation between the paired downstream_mining::DownstreamMiningNode and
 ///    upstream_mining::UpstreamMiningNode begin
 #[async_std::main]
 async fn main() {
     // Scan all the upstreams and map them
-    let config_file = std::fs::read_to_string("proxy-config.toml").unwrap();
-    let config: Config = toml::from_str(&config_file).unwrap();
+    let path = String::from("proxy-config.toml");
+    let config = read_config(path).unwrap();
     let upstreams = config.upstreams;
     let upstream_mining_nodes = upstreams
         .iter()
@@ -101,15 +120,50 @@ async fn main() {
             )))
         })
         .collect();
-    let mut upsteam_mining_nodes = UpstreamMiningNodes {
+    let mut upstream_mining_nodes = UpstreamMiningNodes {
         nodes: upstream_mining_nodes,
     };
-    upsteam_mining_nodes.scan().await;
+    upstream_mining_nodes.scan().await;
 
     // Wait for downstream connection
     let socket = SocketAddr::new(
         IpAddr::from_str(&config.listen_address).unwrap(),
         config.listen_mining_port,
     );
-    crate::lib::downstream_mining::listen_for_downstream_mining(socket, upsteam_mining_nodes).await
+    crate::lib::downstream_mining::listen_for_downstream_mining(socket, upstream_mining_nodes).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_file_success() -> Result<()> {
+        let actual = read_file(String::from("proxy-config.toml"))?;
+        let expect = r#"upstreams = [{ address = "127.0.0.1", port = 34254, pub_key = [215, 11, 47, 78, 34, 232, 25, 192, 195, 168, 170, 209, 95, 181, 40, 114, 154, 226, 176, 190, 90, 169, 238, 89, 191, 183, 97, 63, 194, 119, 11, 31]}]
+listen_address = "127.0.0.1"
+listen_mining_port = 34255
+"#;
+        assert_eq!(actual, expect);
+
+        Ok(())
+    }
+
+    #[test]
+    fn read_file_fail() {
+        assert!(read_file(String::from("bad.file")).is_err());
+    }
+
+    #[test]
+    fn read_proxy_config_toml() -> Result<()> {
+        let actual = read_config(String::from("proxy-config.toml"))?;
+        let expect_str = r#"upstreams = [{ address = "127.0.0.1", port = 34254, pub_key = [215, 11, 47, 78, 34, 232, 25, 192, 195, 168, 170, 209, 95, 181, 40, 114, 154, 226, 176, 190, 90, 169, 238, 89, 191, 183, 97, 63, 194, 119, 11, 31]}]
+listen_address = "127.0.0.1"
+listen_mining_port = 34255
+"#;
+        let expect = toml::from_str(&expect_str)?;
+        assert_eq!(actual, expect);
+
+        Ok(())
+    }
 }

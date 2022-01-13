@@ -251,8 +251,9 @@ pub async fn listen_for_downstream_mining(
     address: SocketAddr,
     upstream_nodes: UpstreamMiningNodes,
 ) {
-    let listner = TcpListener::bind(address).await.unwrap();
-    let mut incoming = listner.incoming();
+    let listener = TcpListener::bind(address).await.unwrap();
+
+    let mut incoming = listener.incoming();
     let upstream_nodes = Arc::new(Mutex::new(upstream_nodes));
 
     while let Some(stream) = incoming.next().await {
