@@ -110,3 +110,6 @@ impl SetupConnectionSuccess {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {}

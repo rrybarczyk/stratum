@@ -1,7 +1,7 @@
 //! Useful struct used into this crate and by crates that want to interact with this one
 use std::sync::{Mutex as Mutex_, MutexGuard, PoisonError};
 
-/// Generator of uniques ids
+/// Generator of unique ids
 #[derive(Debug)]
 pub struct Id {
     state: u32,

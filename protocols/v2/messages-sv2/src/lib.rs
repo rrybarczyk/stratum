@@ -1,4 +1,4 @@
-//! It exports traits that when implemented make the implementor a valid Sv2 role:
+//! It exports traits that when implemented make the implementer a valid Sv2 role:
 //!
 //!```txt
 //! MiningDevice:
@@ -29,7 +29,7 @@
 //! In parser there is anything needed for serialize and deserialize messages.
 //! Handlers export the main traits needed in order to implement a valid Sv2 role.
 //! Routers in routing_logic are used by the traits in handlers for decide to which
-//! downstream/upstrem realy/send they use selectors in order to do that.
+//! downstream/upstream relay/send they use selectors in order to do that.
 pub mod common_properties;
 pub mod errors;
 pub mod group_channel_logic;

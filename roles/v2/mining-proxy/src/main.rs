@@ -3,21 +3,21 @@
 //! Downstream means another proxy or a mining device
 //!
 //! ## From messages_sv2
-//! UpstreamMining is the (sub)protocol that a proxy must implement in order to
-//! understant Downstream mining messages.
+//! UpstreamMining is the (sub)protocol that a proxy must implement in order to understand
+//! Downstream mining messages.
 //!
-//! DownstreamMining is the (sub)protocol that a proxy must implement in order to
-//! understand Upstream mining messages
+//! DownstreamMining is the (sub)protocol that a proxy must implement in order to understand
+//! Upstream mining messages.
 //!
 //! Same thing for DownstreamCommon and UpstreamCommon
 //!
 //! ## Internal
-//! DownstreamMiningNode rapresent the Downstream as defined above as the proxy need to understand
+//! DownstreamMiningNode represent the Downstream as defined above as the proxy need to understand
 //! some message (TODO which one?) from downstream it DownstreamMiningNode it implement
 //! UpstreamMining. DownstreamMiningNode implement UpstreamCommon in order to setup a connection
 //! with the downstream node.
 //!
-//! UpstreamMiningNode rapresent the upstream as defined above as the proxy only need to relay
+//! UpstreamMiningNode represent the upstream as defined above as the proxy only need to relay
 //! downstream messages coming from downstream UpstreamMiningNode do not (for now) implement
 //! DownstreamMining. UpstreamMiningNode implement DownstreamCommon (TODO) in order to setup a
 //! connection with with the upstream node.
@@ -35,9 +35,11 @@ use std::str::FromStr;
 // TODO make them configurable via flags or config file
 pub const MAX_SUPPORTED_VERSION: u16 = 2;
 pub const MIN_SUPPORTED_VERSION: u16 = 2;
-use messages_sv2::routing_logic::MiningProxyRoutingLogic;
-use messages_sv2::selectors::{GeneralMiningSelector, UpstreamMiningSelctor};
-use messages_sv2::utils::{Id, Mutex};
+use messages_sv2::{
+    routing_logic::MiningProxyRoutingLogic,
+    selectors::{GeneralMiningSelector, UpstreamMiningSelctor},
+    utils::{Id, Mutex},
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 

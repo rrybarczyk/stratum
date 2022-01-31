@@ -1,5 +1,5 @@
 //! Selectors are used from the routing logic in order to chose to which remote or set of remotes
-//! a message should be ralyied, or to which remote or set of remotes a message should be sent.
+//! a message should be relayed, or to which remote or set of remotes a message should be sent.
 use crate::common_properties::{IsDownstream, IsMiningDownstream, IsMiningUpstream, PairSettings};
 use crate::errors::Error;
 use crate::utils::Mutex;
@@ -72,8 +72,8 @@ impl<Down: IsMiningDownstream> DownstreamMiningSelector<Down>
 
 impl<Down: IsMiningDownstream> DownstreamSelector<Down> for ProxyDownstreamMiningSelector<Down> {}
 
-/// Implemented by a selector used by an upstream mining node or and upstream mining node
-/// abstraction in order to find the right downstream to which a message should be sent or relayied
+/// Implemented by a selector used by an upstream mining node or an upstream mining node
+/// abstraction in order to find the right downstream to which a message should be sent or relayed
 pub trait DownstreamMiningSelector<Downstream: IsMiningDownstream>:
     DownstreamSelector<Downstream>
 {
@@ -169,8 +169,8 @@ pub trait UpstreamMiningSelctor<
     fn get_upstream(&self, upstream_id: u32) -> Option<Arc<Mutex<Up>>>;
 }
 
-/// Upstream selector is used to chose between a set of known mining upstream nodes which one/ones
-/// can accept messages from a specific mining downstream node
+/// From a set of known mining nodes, the upstream selector chooses which one(s) are configured to
+/// accept messages from a specific mining downstream node.
 #[derive(Debug)]
 pub struct GeneralMiningSelector<
     Sel: DownstreamMiningSelector<Down>,

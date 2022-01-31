@@ -224,12 +224,12 @@ impl<
         Sel: DownstreamMiningSelector<Down> + D,
     > MiningRouter<Down, Up, Sel> for MiningProxyRoutingLogic<Down, Up, Sel>
 {
-    /// Update the request id from downstream to a connection-wide unique request id for
-    /// downstream.
-    /// This method check message type and for the message type that do have a request it update
-    /// it.
+    /// Updates the request id from the downstream node to a connection-wide unique request id for
+    /// the downstream.
+    /// This method checks the message type and for the message types that have a request, it
+    /// updates it.
     ///
-    /// it return the original request id
+    /// The origin request id is returned.
     ///
     /// TODO remove this method and update request id after that the payload has been parsed see
     /// the todo in update_request_id()
@@ -244,18 +244,23 @@ impl<
             .get(&downstream_mining_data)
             .unwrap();
         // TODO the upstream selection logic should be specified by the caller
+        // RRQ: which logic specifically? who is the "caller" in this scenario?
+        // RRQ: why do we care about HOM and total upstream hashrate in this `select_upstreams` fn?
         let upstream = Self::select_upstreams(&mut upstreams.to_vec());
         let old_id = get_request_id(payload);
+        // For each of the selected upstreams, update the associated downstream request id
         upstream
             .safe_lock(|u| {
                 let id_map = u.get_mapper();
                 match message_type {
                     // REQUESTS
                     const_sv2::MESSAGE_TYPE_OPEN_STANDARD_MINING_CHANNEL => {
+                        // Update the request id
                         let new_req_id = id_map.unwrap().on_open_channel(old_id);
                         update_request_id(payload, new_req_id);
                     }
                     const_sv2::MESSAGE_TYPE_OPEN_EXTENDED_MINING_CHANNEL => {
+                        // Update the request id
                         let new_req_id = id_map.unwrap().on_open_channel(old_id);
                         update_request_id(payload, new_req_id);
                     }
@@ -370,6 +375,8 @@ pub struct MiningProxyRoutingLogic<
 //        todo!()
 //    }
 //}
+
+/// Returns the total hashrate RR TODO
 fn minor_total_hr_upstream<Down, Up, Sel>(ups: &mut Vec<Arc<Mutex<Up>>>) -> Arc<Mutex<Up>>
 where
     Down: IsMiningDownstream + D,
@@ -390,6 +397,7 @@ where
         .clone()
 }
 
+/// Iterates over all upstream mining nodes and returns those that are HOM.
 fn filter_header_only<Down, Up, Sel>(ups: &mut Vec<Arc<Mutex<Up>>>) -> Vec<Arc<Mutex<Up>>>
 where
     Down: IsMiningDownstream + D,
@@ -402,9 +410,12 @@ where
         .collect()
 }
 
-/// If only one upstream is avaiable return it
-/// Try to return an upstream that is not header only
-/// Return the upstream that have got less hash rate from downstreams
+/// If only one upstream node is available, return it.
+/// If there is more than one upstream node and one or more of these upstream nodes are HOM,
+/// return only the upstream nodes that are HOM.
+/// If there is more than one upstream node and none are HOM, "then try to return an upstream node
+/// that is not header only." -> RRQ in what the quoted phrase concretely means and the
+/// implications of all three scenarios.
 fn select_upstream<Down, Up, Sel>(ups: &mut Vec<Arc<Mutex<Up>>>) -> Arc<Mutex<Up>>
 where
     Down: IsMiningDownstream + D,
@@ -426,7 +437,7 @@ impl<
         Sel: DownstreamMiningSelector<Down> + D,
     > MiningProxyRoutingLogic<Down, Up, Sel>
 {
-    /// TODO this should stay in a enum UpstreamSelectionLogic that get passed from the caller to
+    /// TODO this should stay in a enum UpstreamSelectionLogic that gets passed from the caller to
     /// the several methods
     fn select_upstreams(ups: &mut Vec<Arc<Mutex<Up>>>) -> Arc<Mutex<Up>> {
         select_upstream(ups)
@@ -517,13 +528,11 @@ impl<
 //    }
 //}
 
-/// WARNING this function assume that request id are the first 2 bytes of the
-/// payload
-///
-/// this function should probably stay somewhere in the binary-sv2 crate the problem here is that
-/// payload is moved to the message created from payload, messages created from payload can be
-/// mutaed but should bot cause changing a value in the created message is not going to replace the
-/// payload bytes and so to use the updated payload eg to realy the message, the message should be
+/// WARNING this function assume that request id are the first 2 bytes of the payload this function
+/// should probably stay somewhere in the binary-sv2 crate the problem here is that payload is
+/// moved to the message created from payload, messages created from payload can be mutated but
+/// should bot cause changing a value in the created message is not going to replace the payload
+/// bytes and so to use the updated payload eg to really the message, the message should be
 /// serialized again and the payload can not be used. For that when necessary the message should
 /// export a method that change a value both in the payload and in the message. Then
 /// ProxyRoutingLogic::update_id can be removed and the id will be updated after that payload has
@@ -536,8 +545,12 @@ fn update_request_id(payload: &mut [u8], id: u32) {
     payload[3] = bytes[3];
 }
 
-/// WARNING this function assume that request id are the first 2 bytes of the
-/// payload
+/// RR CHECK: Returns the client-specified request id from the mining channel message. The channel
+/// message is either `OpenStandardMiningChannel`, `OpenExtendedMiningChannel`, or, in the case of
+/// an error, `OpenMiningChannel`.
+/// WARNING this function assume that request id are the first 2 bytes of the payload
+/// RR Q: Is the request id not always the first two bytes? It looks like they should be according
+/// to the spec (as long as I am looking at the right spot in the spec)
 /// TODO this function should probably stay in another crate
 fn get_request_id(payload: &mut [u8]) -> u32 {
     let bytes = [payload[0], payload[1], payload[2], payload[3]];

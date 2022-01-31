@@ -7,7 +7,7 @@ use common_messages_sv2::{Protocol, SetupConnection};
 use std::collections::HashMap;
 use std::fmt::Debug as D;
 
-/// What define a mining downstream node at the very basic
+/// Defines a downstream mining node in its simplest form.
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub struct CommonDownstreamData {
     pub id: u32,
@@ -88,7 +88,7 @@ pub struct StandardChannel {
     pub extranonce: Extranonce,
 }
 
-/// General propoerties that each mining upstream that implement the Sv2 protocol should have
+/// General properties that each mining upstream node that implement the SV2 protocol should have.
 pub trait IsMiningUpstream<Down: IsMiningDownstream, Sel: DownstreamMiningSelector<Down> + ?Sized>:
     IsUpstream<Down, Sel>
 {
@@ -101,11 +101,13 @@ pub trait IsMiningUpstream<Down: IsMiningDownstream, Sel: DownstreamMiningSelect
     }
 }
 
-/// General propoerties that each downstream that implement the Sv2 protocol should have
+/// General properties that each mining downstream node that implements the SV2 protocol should
+/// have.
 pub trait IsDownstream {
     fn get_downstream_mining_data(&self) -> CommonDownstreamData;
 }
 
+/// General properties that each mining upstream node that implement the SV2 protocol should have.
 pub trait IsMiningDownstream: IsDownstream {
     fn is_header_only(&self) -> bool {
         self.get_downstream_mining_data().header_only
@@ -164,16 +166,21 @@ impl IsDownstream for () {
 
 impl IsMiningDownstream for () {}
 
-/// Proxyies likely need to change the request ids of downsteam's messages. They also need to
-/// remeber original id to patch the upstream's response with it
-#[derive(Debug, Default)]
+/// Proxies likely need to change the request ids of downstream's messages. They also need to
+/// remember the original id to patch the upstream's response with it.
+#[derive(Debug, Default, PartialEq)]
 pub struct RequestIdMapper {
-    // upstream id -> downstream id
+    /// Stores the client-specified request ids in a hash map. The first entry is the
+    /// current request id, the second entry is the previous request id.
+    // upstream id -> downstream id, RRQ: is my explanation on the above line correct?
     request_ids_map: HashMap<u32, u32>,
+    /// The next request id that will be assigned.
     next_id: u32,
 }
 
 impl RequestIdMapper {
+    /// Instantiate a new RequestIdMapper initialized with an empty hash map and 0 for the next
+    /// request id (will be incremented when `RequestIdMapper::on_open_channel` is called).
     pub fn new() -> Self {
         Self {
             request_ids_map: HashMap::new(),
@@ -181,6 +188,8 @@ impl RequestIdMapper {
         }
     }
 
+    /// Increments the request id and inserts this new incremented id along with the old id in a
+    /// hash map.
     pub fn on_open_channel(&mut self, id: u32) -> u32 {
         let new_id = self.next_id;
         self.next_id += 1;
@@ -190,8 +199,40 @@ impl RequestIdMapper {
         new_id
     }
 
+    /// Removes the specified request id from hash map.
     pub fn remove(&mut self, upstream_id: u32) -> u32 {
         //let mut inner = self.request_ids_map.lock().unwrap();
         self.request_ids_map.remove(&upstream_id).unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_new_request_id_mapper_struct() {
+        let actual = RequestIdMapper::new();
+        let expect = RequestIdMapper {
+            request_ids_map: HashMap::new(),
+            next_id: 0,
+        };
+        assert_eq!(actual, expect);
+    }
+
+    #[test]
+    fn inserts_new_id_on_open_channel() {
+        let id = 0;
+        let mut request_id_mapper = RequestIdMapper {
+            request_ids_map: HashMap::new(),
+            next_id: id,
+        };
+        let actual = request_id_mapper.on_open_channel(0);
+        let mut request_ids_map_expect = HashMap::new();
+
+        request_ids_map_expect.insert(id + 1, id);
+
+        let expect = 0;
+        assert_eq!(actual, expect);
     }
 }

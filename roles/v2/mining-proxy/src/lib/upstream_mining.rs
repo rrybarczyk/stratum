@@ -58,22 +58,21 @@ pub enum JobDispatcher {
     None,
 }
 
-/// Can be either a mining pool or another proxy
+/// Can be either a mining pool or another proxy.
 #[derive(Debug)]
 pub struct UpstreamMiningNode {
     id: u32,
     job_ids: Arc<Mutex<Id>>,
     total_hash_rate: u64,
     address: SocketAddr,
-    //port: u32,
     connection: Option<UpstreamMiningConnection>,
     sv2_connection: Option<Sv2MiningConnection>,
     authority_public_key: [u8; 32],
     /// group_channel id/channel_id -> dispatcher
     pub channel_id_to_job_dispatcher: HashMap<u32, JobDispatcher>,
-    /// Each relayd message that have a request_id field must have a unique request_id number
+    /// Each relayed message that has a request_id field must have a unique request_id number,
     /// connection-wise.
-    /// request_id from downstream is not garanted to be uniquie so must be changed
+    /// The request_id from the downstream is NOT guaranteed to be unique, so it must be changed.
     request_id_mapper: RequestIdMapper,
     downstream_selector: ProxyRemoteSelector,
 }
@@ -110,10 +109,10 @@ impl UpstreamMiningNode {
     /// Try send a message to the upstream node.
     /// If the node is connected and there are no error return Ok(())
     /// If the node is connected and there is an error the message is not sent and an error is
-    ///     returned and the upstream is marked as not connected.
+    /// returned and the upstream is marked as not connected.
     /// If the node is not connected it try to connect and send the message and everything is ok
-    ///     the upstream is marked as connected and Ok(()) is returned if not an error is returned.
-    ///     TODO verify and test the above statements
+    /// the upstream is marked as connected and Ok(()) is returned if not an error is returned.
+    /// TODO verify and test the above statements
     pub async fn send(
         self_mutex: Arc<Mutex<Self>>,
         sv2_frame: StdFrame,
