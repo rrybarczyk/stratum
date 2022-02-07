@@ -22,14 +22,14 @@ pub type Message = MiningDeviceMessages<'static>;
 pub type StdFrame = StandardSv2Frame<Message>;
 pub type EitherFrame = StandardEitherFrame<Message>;
 
-/// 1 to 1 connection with a downstream node that implement the mining (sub)protocol can be either
-/// a mining device or a downstream proxy.
+/// Represents a 1 to 1 connection with a downstream node that implements the mining (sub)protocol.
+/// This can be either a mining device or a downstream proxy.
 #[derive(Debug)]
 pub struct DownstreamMiningNode {
     receiver: Receiver<EitherFrame>,
     sender: Sender<EitherFrame>,
     pub status: DownstreamMiningNodeStatus,
-    // channel_id/group_id -> group_id
+    /// channel_id/group_id -> group_id
     channel_id_to_group_id: HashMap<u32, u32>,
 }
 

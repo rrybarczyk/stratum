@@ -216,8 +216,8 @@ impl<
         Up: IsMiningUpstream<Down, Sel>,
     > UpstreamMiningSelctor<Down, Up, Sel> for GeneralMiningSelector<Sel, Down, Up>
 {
-    /// Return the set of mining upstream nodes that can accept messages from a downstream withe
-    /// the passed PairSettings and the sum of all the accepted flags
+    /// Returns the set of mining upstream nodes that can accept messages from a downstream node
+    /// with the passed `PairSettings` and the sum of all the accepted flags.
     #[allow(clippy::type_complexity)]
     fn on_setup_connection(
         &mut self,
@@ -243,6 +243,7 @@ impl<
         Err(Error::NoPairableUpstream((2, 2, 0)))
     }
 
+    /// Returns the upstream id.
     fn get_upstream(&self, upstream_id: u32) -> Option<Arc<Mutex<Up>>> {
         self.id_to_upstream.get(&upstream_id).cloned()
     }

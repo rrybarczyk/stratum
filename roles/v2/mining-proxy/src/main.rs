@@ -128,7 +128,11 @@ async fn main() {
             )))
         })
         .collect();
+    // Scan for all upstream nodes as specified by the proxy-config.toml and try to setup a
+    // connection for each one
     crate::lib::upstream_mining::scan(upstream_mining_nodes.clone()).await;
+    // Create a new upstream selector that chooses which upstream mining nodes are configured to
+    // accept messages from a specific downstream mining node
     let upstream_selector = GeneralMiningSelector::new(upstream_mining_nodes);
     let routing_logic = MiningProxyRoutingLogic {
         upstream_selector,
