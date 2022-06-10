@@ -656,8 +656,6 @@ mod tests {
         let _res = next_frame(&mut decoder_wrapper);
     }
 
-    // RR
-
     #[quickcheck_macros::quickcheck]
     fn encode_with_c_coinbase_output_data_size(message: RandomCoinbaseOutputDataSize) -> bool {
         let expected = message.clone().0;
@@ -665,9 +663,13 @@ mod tests {
         let mut encoder = Encoder::<CoinbaseOutputDataSize>::new();
         let mut decoder = StandardDecoder::<Sv2Message<'static>>::new();
 
-        let frame =
-            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_COINBASE_OUTPUT_DATA_SIZE, 0)
-                .unwrap();
+        let frame = StandardSv2Frame::from_message(
+            message.0,
+            MESSAGE_TYPE_COINBASE_OUTPUT_DATA_SIZE,
+            0,
+            false,
+        )
+        .unwrap();
         let encoded_frame = encoder.encode(frame).unwrap();
 
         let buffer = decoder.writable();
@@ -711,7 +713,7 @@ mod tests {
 
         // Create frame
         let frame =
-            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_NEW_TEMPLATE, 0).unwrap();
+            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_NEW_TEMPLATE, 0, false).unwrap();
         // Encode frame
         let encoded_frame = encoder.encode(frame).unwrap();
 
@@ -761,9 +763,13 @@ mod tests {
         let mut encoder = Encoder::<RequestTransactionData>::new();
         let mut decoder = StandardDecoder::<Sv2Message<'static>>::new();
 
-        let frame =
-            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_REQUEST_TRANSACTION_DATA, 0)
-                .unwrap();
+        let frame = StandardSv2Frame::from_message(
+            message.0,
+            MESSAGE_TYPE_REQUEST_TRANSACTION_DATA,
+            0,
+            false,
+        )
+        .unwrap();
         let encoded_frame = encoder.encode(frame).unwrap();
 
         let buffer = decoder.writable();
@@ -811,6 +817,7 @@ mod tests {
             message.0,
             MESSAGE_TYPE_REQUEST_TRANSACTION_DATA_ERROR,
             0,
+            false,
         )
         .unwrap();
         let encoded_frame = encoder.encode(frame).unwrap();
@@ -860,6 +867,7 @@ mod tests {
             message.0,
             MESSAGE_TYPE_REQUEST_TRANSACTION_DATA_SUCCESS,
             0,
+            false,
         )
         .unwrap();
         let encoded_frame = encoder.encode(frame).unwrap();
@@ -905,7 +913,8 @@ mod tests {
         let mut decoder = StandardDecoder::<Sv2Message<'static>>::new();
 
         let frame =
-            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_SET_NEW_PREV_HASH, 0).unwrap();
+            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_SET_NEW_PREV_HASH, 0, false)
+                .unwrap();
         let encoded_frame = encoder.encode(frame).unwrap();
 
         let buffer = decoder.writable();
@@ -949,7 +958,8 @@ mod tests {
         let mut decoder = StandardDecoder::<Sv2Message<'static>>::new();
 
         let frame =
-            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_SUBMIT_SOLUTION, 0).unwrap();
+            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_SUBMIT_SOLUTION, 0, false)
+                .unwrap();
         let encoded_frame = encoder.encode(frame).unwrap();
 
         let buffer = decoder.writable();
@@ -1001,9 +1011,13 @@ mod tests {
         let mut encoder = Encoder::<ChannelEndpointChanged>::new();
         let mut decoder = StandardDecoder::<Sv2Message<'static>>::new();
 
-        let frame =
-            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_CHANNEL_ENDPOINT_CHANGED, 0)
-                .unwrap();
+        let frame = StandardSv2Frame::from_message(
+            message.0,
+            MESSAGE_TYPE_CHANNEL_ENDPOINT_CHANGED,
+            0,
+            false,
+        )
+        .unwrap();
         let encoded_frame = encoder.encode(frame).unwrap();
 
         let buffer = decoder.writable();
@@ -1038,7 +1052,8 @@ mod tests {
         let mut decoder = StandardDecoder::<Sv2Message<'static>>::new();
 
         let frame =
-            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_SETUP_CONNECTION, 0).unwrap();
+            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_SETUP_CONNECTION, 0, false)
+                .unwrap();
         let encoded_frame = encoder.encode(frame).unwrap();
 
         let buffer = decoder.writable();
@@ -1081,9 +1096,13 @@ mod tests {
         let mut encoder = Encoder::<SetupConnectionError>::new();
         let mut decoder = StandardDecoder::<Sv2Message<'static>>::new();
 
-        let frame =
-            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_SETUP_CONNECTION_ERROR, 0)
-                .unwrap();
+        let frame = StandardSv2Frame::from_message(
+            message.0,
+            MESSAGE_TYPE_SETUP_CONNECTION_ERROR,
+            0,
+            false,
+        )
+        .unwrap();
         let encoded_frame = encoder.encode(frame).unwrap();
 
         let buffer = decoder.writable();
@@ -1126,9 +1145,13 @@ mod tests {
         let mut encoder = Encoder::<SetupConnectionSuccess>::new();
         let mut decoder = StandardDecoder::<Sv2Message<'static>>::new();
 
-        let frame =
-            StandardSv2Frame::from_message(message.0, MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS, 0)
-                .unwrap();
+        let frame = StandardSv2Frame::from_message(
+            message.0,
+            MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS,
+            0,
+            false,
+        )
+        .unwrap();
         let encoded_frame = encoder.encode(frame).unwrap();
 
         let buffer = decoder.writable();
