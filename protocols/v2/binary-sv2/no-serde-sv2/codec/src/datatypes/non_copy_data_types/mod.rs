@@ -50,7 +50,7 @@ impl<'a> B016M<'a> {
     }
 }
 
-use core::convert::{TryFrom, TryInto};
+use core::convert::TryFrom;
 
 impl<'a> TryFrom<String> for Str0255<'a> {
     type Error = crate::Error;
