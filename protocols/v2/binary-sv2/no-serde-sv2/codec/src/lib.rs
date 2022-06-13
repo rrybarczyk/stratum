@@ -82,6 +82,8 @@ pub enum Error {
     InvalidB064KSize(usize),
     InvalidB016MSize(usize),
     InvalidSeq0255Size(usize),
+    /// Error when trying to encode a non-primitive data type
+    NonPrimitiveTypeCannotBeEncoded,
     PrimitiveConversionError,
     DecodableConversionError,
     UnInitializedDecoder,
@@ -89,7 +91,6 @@ pub enum Error {
     IoError(E),
     ReadError(usize, usize),
     VoidFieldMarker,
-    Todo,
 }
 
 #[cfg(not(feature = "no_std"))]

@@ -549,7 +549,7 @@ impl<'a> TryFrom<EncodableField<'a>> for bool {
     fn try_from(value: EncodableField<'a>) -> Result<Self, Self::Error> {
         match value {
             EncodableField::Primitive(EncodablePrimitive::Bool(v)) => Ok(v),
-            _ => Err(Error::Todo),
+            _ => Err(Error::NonPrimitiveTypeCannotBeEncoded),
         }
     }
 }
