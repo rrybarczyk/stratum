@@ -1,6 +1,4 @@
 #[cfg(feature = "prop_test")]
-use core::convert::TryInto;
-#[cfg(feature = "prop_test")]
 use quickcheck::{Arbitrary, Gen};
 
 mod inner;
@@ -50,7 +48,7 @@ impl<'a> B016M<'a> {
     }
 }
 
-use core::convert::TryFrom;
+use core::convert::{TryFrom, TryInto};
 
 impl<'a> TryFrom<String> for Str0255<'a> {
     type Error = crate::Error;
