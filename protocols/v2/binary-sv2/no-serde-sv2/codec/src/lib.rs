@@ -90,9 +90,11 @@ pub enum Error {
     #[cfg(not(feature = "no_std"))]
     IoError(E),
     ReadError(usize, usize),
-    /// Error when `Inner` type value exceeds max size.
+    /// Error when `Inner` type value exceeds max size
     /// (ISFIXED, SIZE, HEADERSIZE, MAXSIZE, bad value vec, bad value length)
     ValueExceedsMaxSize(bool, usize, usize, usize, Vec<u8>, usize),
+    /// Error when sequence value (`Seq0255`, `Seq064K`) exceeds max size
+    SeqExceedsMaxSize,
     VoidFieldMarker,
 }
 
