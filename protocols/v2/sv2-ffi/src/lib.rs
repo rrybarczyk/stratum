@@ -274,8 +274,9 @@ pub enum CResult<T, E> {
 pub enum Sv2Error {
     BinaryError(binary_sv2::Error),
     CodecError(codec_sv2::Error),
+    /// Errors on oversized payload
+    /// TODO: Make `PayloadTooBig(String)` and pass in the `message` (which is type `T`)
     PayloadTooBig,
-    // PayloadTooBig(String),
     MissingBytes,
     EncoderBusy,
     Todo,
@@ -289,7 +290,6 @@ impl fmt::Display for Sv2Error {
             BinaryError(ref e) => write!(f, "{:?}", e),
             CodecError(ref e) => write!(f, "{:?}", e),
             PayloadTooBig => write!(f, "Payload is too big"),
-            // PayloadTooBig(s) => write!(f, "{}", s),
             MissingBytes => write!(f, "Missing expected bytes"),
             EncoderBusy => write!(f, "Encoder is busy"),
             Todo => write!(f, "TODO: Handle Error"),
@@ -365,7 +365,6 @@ fn encode_(
         c_bit,
     )
     .ok_or(Sv2Error::PayloadTooBig)?;
-    // .ok_or(Sv2Error::PayloadTooBig(message.to_string()))?;
     encoder
         .encoder
         .encode(frame)
