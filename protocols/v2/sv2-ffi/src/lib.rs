@@ -33,6 +33,7 @@ use const_sv2::{
     MESSAGE_TYPE_SUBMIT_SOLUTION,
 };
 use core::convert::{TryFrom, TryInto};
+use std::fmt;
 
 #[derive(Clone, Debug)]
 pub enum Sv2Message<'a> {
@@ -271,10 +272,42 @@ pub enum CResult<T, E> {
 
 #[repr(C)]
 pub enum Sv2Error {
+    BinaryError(binary_sv2::Error),
+    CodecError(codec_sv2::Error),
+    PayloadTooBig,
+    // PayloadTooBig(String),
     MissingBytes,
     EncoderBusy,
     Todo,
     Unknown,
+}
+
+impl fmt::Display for Sv2Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Sv2Error::*;
+        match self {
+            BinaryError(ref e) => write!(f, "{:?}", e),
+            CodecError(ref e) => write!(f, "{:?}", e),
+            PayloadTooBig => write!(f, "Payload is too big"),
+            // PayloadTooBig(s) => write!(f, "{}", s),
+            MissingBytes => write!(f, "Missing expected bytes"),
+            EncoderBusy => write!(f, "Encoder is busy"),
+            Todo => write!(f, "TODO: Handle Error"),
+            Unknown => write!(f, "Unknown error occurred"),
+        }
+    }
+}
+
+impl From<binary_sv2::Error> for Sv2Error {
+    fn from(e: binary_sv2::Error) -> Sv2Error {
+        Sv2Error::BinaryError(e)
+    }
+}
+
+impl From<codec_sv2::Error> for Sv2Error {
+    fn from(e: codec_sv2::Error) -> Sv2Error {
+        Sv2Error::CodecError(e)
+    }
 }
 
 #[no_mangle]
@@ -318,7 +351,10 @@ pub extern "C" fn flush_encoder(encoder: *mut EncoderWrapper) {
     Box::into_raw(encoder);
 }
 
-fn encode_(message: &'static mut CSv2Message, encoder: &mut EncoderWrapper) -> Result<CVec, Error> {
+fn encode_(
+    message: &'static mut CSv2Message,
+    encoder: &mut EncoderWrapper,
+) -> Result<CVec, Sv2Error> {
     let message: Sv2Message = message.to_rust_rep_mut()?;
     let m_type = message.message_type();
     let c_bit = message.channel_bit();
@@ -328,11 +364,12 @@ fn encode_(message: &'static mut CSv2Message, encoder: &mut EncoderWrapper) -> R
         EXTENSION_TYPE_NO_EXTENSION,
         c_bit,
     )
-    .ok_or(Error::Todo)?;
+    .ok_or(Sv2Error::PayloadTooBig)?;
+    // .ok_or(Sv2Error::PayloadTooBig(message.to_string()))?;
     encoder
         .encoder
         .encode(frame)
-        .map_err(|_| Error::Todo)
+        .map_err(|e| Sv2Error::CodecError(e))
         .map(|x| x.into())
 }
 
