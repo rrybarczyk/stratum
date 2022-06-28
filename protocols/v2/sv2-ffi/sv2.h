@@ -416,13 +416,6 @@ void free_submit_solution(CSubmitSolution s);
 #include <ostream>
 #include <new>
 
-enum class Sv2Error {
-  MissingBytes,
-  EncoderBusy,
-  Todo,
-  Unknown,
-};
-
 struct DecoderWrapper;
 
 struct EncoderWrapper;
@@ -499,6 +492,34 @@ struct CSv2Message {
     SetupConnection_Body setup_connection;
     SetupConnectionError_Body setup_connection_error;
     SetupConnectionSuccess_Body setup_connection_success;
+  };
+};
+
+struct Sv2Error {
+  enum class Tag {
+    BinaryError,
+    CodecError,
+    /// Errors on oversized payload
+    /// TODO: Make `PayloadTooBig(String)` and pass in the `message` (which is type `T`)
+    PayloadTooBig,
+    MissingBytes,
+    EncoderBusy,
+    Todo,
+    Unknown,
+  };
+
+  struct BinaryError_Body {
+    Error _0;
+  };
+
+  struct CodecError_Body {
+    Error _0;
+  };
+
+  Tag tag;
+  union {
+    BinaryError_Body binary_error;
+    CodecError_Body codec_error;
   };
 };
 
