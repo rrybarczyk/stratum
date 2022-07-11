@@ -279,7 +279,6 @@ pub enum Sv2Error {
     PayloadTooBig,
     MissingBytes,
     EncoderBusy,
-    Todo,
     Unknown,
 }
 
@@ -292,7 +291,6 @@ impl fmt::Display for Sv2Error {
             PayloadTooBig => write!(f, "Payload is too big"),
             MissingBytes => write!(f, "Missing expected bytes"),
             EncoderBusy => write!(f, "Encoder is busy"),
-            Todo => write!(f, "TODO: Handle Error"),
             Unknown => write!(f, "Unknown error occurred"),
         }
     }
@@ -389,12 +387,10 @@ pub unsafe extern "C" fn encode(
 ) -> CResult<CVec, Sv2Error> {
     let mut encoder = Box::from_raw(encoder);
     if encoder.free {
-        let result = encode_(message, &mut encoder)
-            .map_err(|_| Sv2Error::Todo)
-            .into();
+        let result = encode_(message, &mut encoder);
         encoder.free = false;
         Box::into_raw(encoder);
-        result
+        result.into()
     } else {
         CResult::Err(Sv2Error::EncoderBusy)
     }
