@@ -69,6 +69,7 @@ pub mod encodable {
 extern crate alloc;
 
 #[derive(Debug)]
+#[repr(C)]
 pub enum Error {
     OutOfBound,
     NotABool(u8),
@@ -92,7 +93,9 @@ pub enum Error {
     ReadError(usize, usize),
     /// Error when `Inner` type value exceeds max size
     /// (ISFIXED, SIZE, HEADERSIZE, MAXSIZE, bad value vec, bad value length)
-    ValueExceedsMaxSize(bool, usize, usize, usize, Vec<u8>, usize),
+    // ValueExceedsMaxSize(bool, usize, usize, usize, Vec<u8>, usize),
+    // ValueExceedsMaxSize(bool, usize, usize, usize, CVec, usize),
+    ValueExceedsMaxSize,
     /// Error when sequence value (`Seq0255`, `Seq064K`) exceeds max size
     SeqExceedsMaxSize,
     VoidFieldMarker,
@@ -156,6 +159,24 @@ impl CVec {
 
 impl From<&[u8]> for CVec {
     fn from(v: &[u8]) -> Self {
+        let mut buffer: Vec<u8> = vec![0; v.len()];
+        buffer.copy_from_slice(v);
+
+        // Get the length, first, then the pointer (doing it the other way around **currently** doesn't cause UB, but it may be unsound due to unclear (to me, at least) guarantees of the std lib)
+        let len = buffer.len();
+        let ptr = buffer.as_mut_ptr();
+        std::mem::forget(buffer);
+
+        CVec {
+            data: ptr,
+            len,
+            capacity: len,
+        }
+    }
+}
+
+impl From<&mut [u8]> for CVec {
+    fn from(v: &mut [u8]) -> Self {
         let mut buffer: Vec<u8> = vec![0; v.len()];
         buffer.copy_from_slice(v);
 
