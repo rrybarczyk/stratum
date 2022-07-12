@@ -2,7 +2,7 @@ use super::IntoOwned;
 use crate::{
     codec::{GetSize, SizeHint},
     datatypes::Sv2DataType,
-    Error,
+    CVec, Error,
 };
 use core::convert::TryFrom;
 use std::convert::TryInto;
@@ -162,27 +162,27 @@ impl<'a, const ISFIXED: bool, const SIZE: usize, const HEADERSIZE: usize, const 
         if ISFIXED && value.len() == SIZE {
             Ok(Self::Ref(value))
         } else if ISFIXED {
-            Err(Error::ValueExceedsMaxSize)
-            // Err(Error::ValueExceedsMaxSize(
-            //     ISFIXED,
-            //     SIZE,
-            //     HEADERSIZE,
-            //     MAXSIZE,
-            //     value.from(),
-            //     value.len(),
-            // ))
+            // Err(Error::ValueExceedsMaxSize)
+            Err(Error::ValueExceedsMaxSize(
+                ISFIXED,
+                SIZE,
+                HEADERSIZE,
+                MAXSIZE,
+                value.into(),
+                value.len(),
+            ))
         } else if value.len() <= MAXSIZE {
             Ok(Self::Ref(value))
         } else {
-            Err(Error::ValueExceedsMaxSize)
-            // Err(Error::ValueExceedsMaxSize(
-            //     ISFIXED,
-            //     SIZE,
-            //     HEADERSIZE,
-            //     MAXSIZE,
-            //     value.to_vec(),
-            //     value.len(),
-            // ))
+            // Err(Error::ValueExceedsMaxSize)
+            Err(Error::ValueExceedsMaxSize(
+                ISFIXED,
+                SIZE,
+                HEADERSIZE,
+                MAXSIZE,
+                value.into(),
+                value.len(),
+            ))
         }
     }
 }
@@ -196,27 +196,31 @@ impl<'a, const ISFIXED: bool, const SIZE: usize, const HEADERSIZE: usize, const 
         if ISFIXED && value.len() == SIZE {
             Ok(Self::Owned(value))
         } else if ISFIXED {
-            Err(Error::ValueExceedsMaxSize)
-            // Err(Error::ValueExceedsMaxSize(
-            //     ISFIXED,
-            //     SIZE,
-            //     HEADERSIZE,
-            //     MAXSIZE,
-            //     value.to_vec(),
-            //     value.len(),
-            // ))
+            let val1: &[u8] = value.as_ref();
+            let val: CVec = val1.into();
+            // Err(Error::ValueExceedsMaxSize)
+            Err(Error::ValueExceedsMaxSize(
+                ISFIXED,
+                SIZE,
+                HEADERSIZE,
+                MAXSIZE,
+                val,
+                value.len(),
+            ))
         } else if value.len() <= MAXSIZE {
             Ok(Self::Owned(value))
         } else {
-            Err(Error::ValueExceedsMaxSize)
-            // Err(Error::ValueExceedsMaxSize(
-            //     ISFIXED,
-            //     SIZE,
-            //     HEADERSIZE,
-            //     MAXSIZE,
-            //     value.to_vec(),
-            //     value.len(),
-            // ))
+            // Err(Error::ValueExceedsMaxSize)
+            let val1: &[u8] = value.as_ref();
+            let val: CVec = val1.into();
+            Err(Error::ValueExceedsMaxSize(
+                ISFIXED,
+                SIZE,
+                HEADERSIZE,
+                MAXSIZE,
+                val,
+                value.len(),
+            ))
         }
     }
 }

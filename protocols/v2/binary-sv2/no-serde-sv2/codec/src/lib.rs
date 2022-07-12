@@ -94,8 +94,8 @@ pub enum Error {
     /// Error when `Inner` type value exceeds max size
     /// (ISFIXED, SIZE, HEADERSIZE, MAXSIZE, bad value vec, bad value length)
     // ValueExceedsMaxSize(bool, usize, usize, usize, Vec<u8>, usize),
-    // ValueExceedsMaxSize(bool, usize, usize, usize, CVec, usize),
-    ValueExceedsMaxSize,
+    ValueExceedsMaxSize(bool, usize, usize, usize, CVec, usize),
+    // ValueExceedsMaxSize,
     /// Error when sequence value (`Seq0255`, `Seq064K`) exceeds max size
     SeqExceedsMaxSize,
     VoidFieldMarker,
