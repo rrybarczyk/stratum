@@ -2,7 +2,7 @@ use super::IntoOwned;
 use crate::{
     codec::{GetSize, SizeHint},
     datatypes::Sv2DataType,
-    CVec, Error,
+    Error,
 };
 use core::convert::TryFrom;
 use std::convert::TryInto;
@@ -196,29 +196,23 @@ impl<'a, const ISFIXED: bool, const SIZE: usize, const HEADERSIZE: usize, const 
         if ISFIXED && value.len() == SIZE {
             Ok(Self::Owned(value))
         } else if ISFIXED {
-            let val1: &[u8] = value.as_ref();
-            let val: CVec = val1.into();
-            // Err(Error::ValueExceedsMaxSize)
             Err(Error::ValueExceedsMaxSize(
                 ISFIXED,
                 SIZE,
                 HEADERSIZE,
                 MAXSIZE,
-                val,
+                value.to_vec(),
                 value.len(),
             ))
         } else if value.len() <= MAXSIZE {
             Ok(Self::Owned(value))
         } else {
-            // Err(Error::ValueExceedsMaxSize)
-            let val1: &[u8] = value.as_ref();
-            let val: CVec = val1.into();
             Err(Error::ValueExceedsMaxSize(
                 ISFIXED,
                 SIZE,
                 HEADERSIZE,
                 MAXSIZE,
-                val,
+                value.to_vec(),
                 value.len(),
             ))
         }

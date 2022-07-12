@@ -272,7 +272,7 @@ pub enum CResult<T, E> {
 
 #[repr(C)]
 pub enum Sv2Error {
-    BinaryError(binary_sv2::Error),
+    BinaryError(binary_sv2::CError),
     CodecError(codec_sv2::Error),
     /// Errors on oversized payload
     /// TODO: Make `PayloadTooBig(String)` and pass in the `message` (which is type `T`)
@@ -280,6 +280,12 @@ pub enum Sv2Error {
     MissingBytes,
     EncoderBusy,
     Unknown,
+}
+
+impl From<binary_sv2::Error> for Sv2Error {
+    fn from(e: binary_sv2::Error) -> Sv2Error {
+        Sv2Error::BinaryError(e.into())
+    }
 }
 
 impl fmt::Display for Sv2Error {
@@ -296,9 +302,9 @@ impl fmt::Display for Sv2Error {
     }
 }
 
-impl From<binary_sv2::Error> for Sv2Error {
-    fn from(e: binary_sv2::Error) -> Sv2Error {
-        Sv2Error::BinaryError(e)
+impl From<binary_sv2::CError> for Sv2Error {
+    fn from(e: binary_sv2::CError) -> Sv2Error {
+        Sv2Error::BinaryError(e.into())
     }
 }
 

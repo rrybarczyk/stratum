@@ -70,7 +70,7 @@ extern crate alloc;
 
 #[derive(Debug)]
 #[repr(C)]
-pub enum Error {
+pub enum CError {
     OutOfBound,
     NotABool(u8),
     /// -> (expected size, actual size)
@@ -93,8 +93,68 @@ pub enum Error {
     ReadError(usize, usize),
     /// Error when `Inner` type value exceeds max size
     /// (ISFIXED, SIZE, HEADERSIZE, MAXSIZE, bad value vec, bad value length)
-    // ValueExceedsMaxSize(bool, usize, usize, usize, Vec<u8>, usize),
     ValueExceedsMaxSize(bool, usize, usize, usize, CVec, usize),
+    /// Error when sequence value (`Seq0255`, `Seq064K`) exceeds max size
+    SeqExceedsMaxSize,
+    VoidFieldMarker,
+}
+
+impl From<Error> for CError {
+    fn from(e: Error) -> CError {
+        match e {
+            Error::OutOfBound => CError::OutOfBound,
+            Error::NotABool(u) => CError::NotABool(u),
+            Error::WriteError(v1, v2) => CError::WriteError(v1, v2),
+            Error::U24TooBig(v) => CError::U24TooBig(v),
+            Error::InvalidSignatureSize(v) => CError::InvalidSignatureSize(v),
+            Error::InvalidU256(v) => CError::InvalidU256(v),
+            Error::InvalidU24(v) => CError::InvalidU24(v),
+            Error::InvalidB0255Size(v) => CError::InvalidB0255Size(v),
+            Error::InvalidB064KSize(v) => CError::InvalidB064KSize(v),
+            Error::InvalidB016MSize(v) => CError::InvalidB016MSize(v),
+            Error::InvalidSeq0255Size(v) => CError::InvalidSeq0255Size(v),
+            Error::NonPrimitiveTypeCannotBeEncoded => CError::NonPrimitiveTypeCannotBeEncoded,
+            Error::PrimitiveConversionError => CError::PrimitiveConversionError,
+            Error::DecodableConversionError => CError::DecodableConversionError,
+            Error::UnInitializedDecoder => CError::UnInitializedDecoder,
+            Error::IoError(_) => CError::IoError,
+            Error::ReadError(v1, v2) => CError::ReadError(v1, v2),
+            Error::ValueExceedsMaxSize(isfixed, size, headersize, maxsize, bad_value, bad_len) => {
+                let bv1: &[u8] = bad_value.as_ref();
+                let bv: CVec = bv1.into();
+                CError::ValueExceedsMaxSize(isfixed, size, headersize, maxsize, bv, bad_len)
+            }
+            Error::SeqExceedsMaxSize => CError::SeqExceedsMaxSize,
+            Error::VoidFieldMarker => CError::VoidFieldMarker,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Error {
+    OutOfBound,
+    NotABool(u8),
+    /// -> (expected size, actual size)
+    WriteError(usize, usize),
+    U24TooBig(u32),
+    InvalidSignatureSize(usize),
+    InvalidU256(usize),
+    InvalidU24(u32),
+    InvalidB0255Size(usize),
+    InvalidB064KSize(usize),
+    InvalidB016MSize(usize),
+    InvalidSeq0255Size(usize),
+    /// Error when trying to encode a non-primitive data type
+    NonPrimitiveTypeCannotBeEncoded,
+    PrimitiveConversionError,
+    DecodableConversionError,
+    UnInitializedDecoder,
+    #[cfg(not(feature = "no_std"))]
+    IoError(E),
+    ReadError(usize, usize),
+    /// Error when `Inner` type value exceeds max size
+    /// (ISFIXED, SIZE, HEADERSIZE, MAXSIZE, bad value vec, bad value length)
+    ValueExceedsMaxSize(bool, usize, usize, usize, Vec<u8>, usize),
     // ValueExceedsMaxSize,
     /// Error when sequence value (`Seq0255`, `Seq064K`) exceeds max size
     SeqExceedsMaxSize,
@@ -106,7 +166,7 @@ impl From<E> for Error {
     fn from(v: E) -> Self {
         match v.kind() {
             ErrorKind::UnexpectedEof => Error::OutOfBound,
-            _ => Error::IoError,
+            _ => Error::IoError(v),
         }
     }
 }
