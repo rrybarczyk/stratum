@@ -89,7 +89,7 @@ pub enum Error {
     DecodableConversionError,
     UnInitializedDecoder,
     #[cfg(not(feature = "no_std"))]
-    IoError(E),
+    IoError,
     ReadError(usize, usize),
     /// Error when `Inner` type value exceeds max size
     /// (ISFIXED, SIZE, HEADERSIZE, MAXSIZE, bad value vec, bad value length)
@@ -106,7 +106,7 @@ impl From<E> for Error {
     fn from(v: E) -> Self {
         match v.kind() {
             ErrorKind::UnexpectedEof => Error::OutOfBound,
-            _ => Error::IoError(v),
+            _ => Error::IoError,
         }
     }
 }
