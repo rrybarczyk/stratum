@@ -17,6 +17,7 @@ use codec_sv2::{
 
 #[derive(Debug)]
 pub struct Connection {
+    /// Noise protocol state
     pub state: codec_sv2::State,
 }
 
@@ -40,6 +41,7 @@ impl Connection {
             Receiver<StandardEitherFrame<Message>>,
         ) = bounded(10); // TODO caller should provide this param
 
+        // Set noise protocol state to `NotInitialized`
         let state = codec_sv2::State::new();
 
         let connection = Arc::new(Mutex::new(Self { state }));
@@ -141,18 +143,33 @@ impl Connection {
         sender_outgoing: Sender<StandardEitherFrame<Message>>,
         receiver_incoming: Receiver<StandardEitherFrame<Message>>,
     ) -> codec_sv2::State {
+        // Set state handshake mode, where `codec` is negotiating the keys
         let mut state = codec_sv2::State::initialize(role);
 
+        // Downstream (`Initiator`) takes the first handshake step.
+        // Upstream (`Responder`) sends an `ExpectReply` message to the Downstream (`Initiator`)
+        // containing their supported encryption algorithms
         let first_message = state.step(None).unwrap();
         sender_outgoing.send(first_message.into()).await.unwrap();
 
+        // Upstream receives an `ExpectReply` message from the Downstream containing the selected
+        // encryption algorithm
         let second_message = receiver_incoming.recv().await.unwrap();
         let mut second_message: HandShakeFrame = second_message.try_into().unwrap();
         let second_message = second_message.payload().to_vec();
 
-        let thirth_message = state.step(Some(second_message)).unwrap();
-        sender_outgoing.send(thirth_message.into()).await.unwrap();
+        // Downstream updates the handshake state with the chosen encryption algorithm and sends an
+        // `ExpectReply` message containing their ephemeral public key to the Upstream
+        let third_message = state.step(Some(second_message)).unwrap();
+        sender_outgoing.send(third_message.into()).await.unwrap();
 
+        // Downstream receives a `NoMoreReply` messages from the Upstream containing:
+        // e: `Initiator`'s ephemeral public key
+        // ee: `Responder`'s ephemeral public key
+        // s: `Initiator`'s static public key
+        // es: Token indicates a DH between the `Initiator`'s ephemeral public key and the
+        //     `Responder`'s static public key
+        // SIGNATURE_NOISE_MESSAGE: encrypted noise message
         let fourth_message = receiver_incoming.recv().await.unwrap();
         let mut fourth_message: HandShakeFrame = fourth_message.try_into().unwrap();
         let fourth_message = fourth_message.payload().to_vec();
@@ -173,22 +190,36 @@ impl Connection {
     ) -> codec_sv2::State {
         let mut state = codec_sv2::State::initialize(role);
 
+        // Upstream (`Responder`) receives an `ExpectReply` message from the Downstream
+        // (`Initiator`) containing their support encryption algorithms
         let mut first_message: HandShakeFrame =
             receiver_incoming.recv().await.unwrap().try_into().unwrap();
         let first_message = first_message.payload().to_vec();
 
+        // Upstream sends an `ExpectReply` message to the Downstream with the selected encryption
+        // algorithm
         let second_message = state.step(Some(first_message)).unwrap();
-
         sender_outgoing.send(second_message.into()).await.unwrap();
 
-        let mut thirth_message: HandShakeFrame =
+        // Upstream receives an `ExpectReply` message from the Downstream containing their
+        // ephemeral public key (e)
+        let mut third_message: HandShakeFrame =
             receiver_incoming.recv().await.unwrap().try_into().unwrap();
-        let thirth_message = thirth_message.payload().to_vec();
+        let third_message = third_message.payload().to_vec();
 
-        let fourth_message = state.step(Some(thirth_message)).unwrap();
+        // Upstream creates a `NoMoreReply` message and sends to the Downstream.
+        // This messages contains:
+        // e: Downstream's ephemeral public key
+        // ee: Upstream's ephemeral public key
+        // s: Downstream's static public key
+        // es: Token indicates a DH between the Downstream's ephemeral public key and the
+        //     Upstream's static public key
+        // The Downstream verifies the Upstream's signatures of the remote static key and creates a
+        // `Done` reply message indicating the handshake is complete
+        let fourth_message = state.step(Some(third_message)).unwrap();
         sender_outgoing.send(fourth_message.into()).await.unwrap();
 
-        // CHECK IF FOURTH MESSAGE HAS BEEN SENT
+        // Every 1 ms, check if fourth message has been sent from the Downstream to the Upstream
         loop {
             tokio::time::sleep(std::time::Duration::from_millis(1)).await;
             if sender_incoming.is_empty() {

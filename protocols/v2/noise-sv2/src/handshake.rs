@@ -11,7 +11,7 @@ pub type Message = Vec<u8>;
 /// provided message (if any)
 #[derive(Debug, PartialEq)]
 pub enum StepResult {
-    /// variant and expect a reply
+    /// Sends the serialized noise bytes and expects a reply from the counter party
     ExpectReply(Message),
     /// This message is yet to be sent to the counter party and we are allowed to switch to
     /// transport mode

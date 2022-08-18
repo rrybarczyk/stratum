@@ -121,6 +121,13 @@ impl Initiator {
     ) -> Result<()> {
         let builder = NoiseParamsBuilder::new(algo).get_builder();
 
+        //
+        // Noise protocols have a prologue input which allows arbitrary data to be hashed into the
+        // `h` variable. If both parties do not provide identical prologue data, the handshake will
+        // fail due to a decryption error. This is useful when the parties engaged in negotiation
+        // prior to the handshake and want to ensure they share identical views of that
+        // negotiation.
+        // https://noiseprotocol.org/noise.html#prologue
         self.handshake_state = builder.prologue(prologue).build_initiator()?;
         Ok(())
     }
@@ -131,26 +138,36 @@ impl handshake::Step for Initiator {
         self.handshake_state
     }
 
+    /// Performs a handshake step for the `Initiator`.
+    /// `in_msg` is the optional input to be processed.
     fn step(&mut self, in_msg: Option<handshake::Message>) -> Result<handshake::StepResult> {
         let mut noise_bytes = Vec::new();
 
         let result = match self.stage {
             0 => {
-                // -> list supported algorithms
-                //
+                // Get list of `Initiator` supported encryption algorithms to communicate to the
+                // `Responder`
                 let msg = NegotiationMessage::new(self.algorithms.clone());
-                // below never fail
+                // Serialize noise bytes. Never fails
                 let serialized = to_bytes(msg.clone()).unwrap();
 
+                // Return the next step which indicates the noise bytes should sent to the
+                // `Responder` and the `Responder` should send back a reply
                 handshake::StepResult::ExpectReply(serialized)
             }
             1 => {
-                // <- chosen algorithm
+                // The `Responder` responded with selected encryption algorithm (`in_msg`)
+                // The `Initiator` updates their handshake state with the chosen encryption
+                // algorithm
+                // The `Initiator` sends an `ExpectReply` containing their ephemeral public key to
+                // the `Responder`
+                // TODO: Create error variant `ExpectedIncomingHandshakeMessage` but got none
                 let mut in_msg = in_msg.ok_or(Error::NoiseTodo)?;
                 let negotiation_message: NegotiationMessage = dbg!(from_bytes(in_msg.as_mut())?);
                 let algos = dbg!(negotiation_message.get_algos()?);
 
                 if algos.len() != 1 {
+                    // TODO: Change to `MustSpecifyOneEncryptionAlgorithm`
                     return Err(Error::MoreThanOneAlgoReceived(algos.len()));
                 }
                 let chosen_algorithm = algos[0];
@@ -171,9 +188,18 @@ impl handshake::Step for Initiator {
                 handshake::StepResult::ExpectReply(noise_bytes)
             }
             2 => {
-                // Receive responder message
                 // <- e, ee, s, es, SIGNATURE_NOISE_MESSAGE
                 //
+                // The `Initiator` receives the `NoMoreReply` message from the `Responder`
+                // containing:
+                // e: `Initiator`'s ephemeral public key
+                // ee: `Responder`'s ephemeral public key
+                // s: `Initiator`'s static public key
+                // es: Token indicates a DH between the `Initiator`'s ephemeral public key and the
+                //     `Responder`'s static public key
+                // SIGNATURE_NOISE_MESSAGE: encrypted noise message
+
+                // TODO: Create error variant `ExpectedIncomingHandshakeMessage` but got none
                 let in_msg = in_msg.ok_or(Error::NoiseTodo)?;
 
                 noise_bytes.resize(BUFFER_LEN, 0);
@@ -184,8 +210,11 @@ impl handshake::Step for Initiator {
 
                 debug_assert!(SIGNATURE_MESSAGE_LEN == signature_len);
 
+                // The `Initiator` verifies the `Responder`'s signature of the remote static key
                 self.verify_remote_static_key_signature(noise_bytes[..signature_len].to_vec())?;
 
+                // The `Responder` indicates to the `Initiator` that they are done sending or
+                // receiving messages
                 handshake::StepResult::Done
             }
             _ => return Err(Error::HSInitiatorStepNotFound(self.stage)),
@@ -311,11 +340,20 @@ impl handshake::Step for Responder {
         self.handshake_state
     }
 
+    /// Performs a handshake step for the `Responder`.
+    /// `in_msg` is the optional input to be processed.
     fn step(&mut self, in_msg: Option<handshake::Message>) -> Result<handshake::StepResult> {
         let mut noise_bytes = Vec::new();
 
         let result = match self.stage {
             0 => {
+                // Receives an `ExpectReply` message from the `Initiator` containing their
+                // supported encryption algorithms. `Reponder` prioritizes the selection of the AES
+                // encryption scheme, otherwise they choose the first algorithm found that is
+                // supported by both parties.
+                // Sends an `ExpectReply` message to the `Initiator` containing the chosen
+                // encryption algorithm and expects a reply from the `Initiator`.
+                // TODO: Create error variant `ExpectedIncomingHandshakeMessage` but got none
                 let mut in_msg = in_msg.ok_or(Error::NoiseTodo)?;
                 let negotiation_message: std::result::Result<NegotiationMessage, _> =
                     from_bytes(&mut in_msg);
@@ -347,21 +385,34 @@ impl handshake::Step for Responder {
                 }
             }
             1 => {
-                // Receive Initiator ephemeral public key
-                // <- e
+                // -> e, ee, s, es, SIGNATURE_NOISE_MESSAGE
                 //
+                // Receives an `ExpectReply` message from the `Initiator` containing their
+                // ephemeral public key, e (`in_msg`).
+                //
+                // Creates `NoMoreReply` response message with:
+                // e: `Initiator`'s ephemeral public key
+                // ee: `Responder`'s ephemeral public key
+                // s: `Initiator`'s static public key
+                // es: Token indicates a DH between the `Initiator`'s ephemeral public key and the
+                //     `Responder`'s static public key
+                // SIGNATURE_NOISE_MESSAGE: encrypted noise message
+
+                // TODO: Create error variant `ExpectedIncomingHandshakeMessage` but got none
                 let in_msg = in_msg.ok_or(Error::NoiseTodo)?;
 
                 let buffer_len = BUFFER_LEN;
 
                 noise_bytes.resize(buffer_len, 0);
 
+                // Reads a noise message from the `Initiator`, validates that the ephemeral public
+                // key can be decrypted and/or that the authentication tag is verified, and returns
+                // the size of the `in_msg` payload. If fails, errs with `SnowError::Decrypt`
                 self.handshake_state
                     .read_message(&in_msg, &mut noise_bytes)?;
 
-                // Create response message
-                // -> e, ee, s, es, SIGNATURE_NOISE_MESSAGE
-                //
+                // Constructs a message from `in_msg` (and pending handshake tokens if in handshake
+                // state), and writes it to the `noise_bytes` buffer
                 let len_written = self
                     .handshake_state
                     .write_message(&self.signature_noise_message, &mut noise_bytes)?;
