@@ -5,6 +5,8 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[repr(C)]
 #[derive(Debug)]
 pub enum Error {
+    /// Errors when deserializing buffer with incorrect size.
+    BadBufferDeserailizeSize(usize, usize),
     BadSerdeJson(serde_json::Error),
     /// Errors on bad conversion from system time to UNIX timestamp.
     BadSystemTimeFromTimestamp(std::time::SystemTimeError),
@@ -53,6 +55,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Error::*;
         match self {
+            BadBufferDeserailizeSize(u1, u2) => write!(f, "Deserialize buffer size expected {}, got {}", u1, u2),
             BadSerdeJson(e) => write!(f, "Serde JSON Error: `{}`", e),
             BadSystemTimeFromTimestamp(e) => write!(f, "Error converting system time to UNIX timestamp: `{}`", e),
             BadTimestampFromSystemTime(u) => write!(f, "Error converting UNIX timestamp `{}` to system time", u),
