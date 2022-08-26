@@ -1,98 +1,107 @@
 # Noise encryption guide
 Stratum V2 security is based on [Noise protocol](https://noiseprotocol.org/noise.html).
-There are 2 phases of the encrypted session initialization:
+There are two phases of the encrypted session initialization:
 1. Algorithm negotiation that should be used for authenticated encryption once the session is initialized 
 2. [NX Noise handshake](https://noiseprotocol.org/noise.html#interactive-handshake-patterns-fundamental)
 
-During these two phases we say the connection is in *Handshake State*
-After finishing the noise handshake, encrypted session is established. This is called *Transport State*.
+During these two phases we say the connection is in *Handshake State*.
+After finishing the noise handshake, encrypted session is established.
+This is called *Transport State*.
 
 ## Noise messages, serialization and framing
-Each message that is sent between negotiating parties is serialized into a byte array that is sent through the
-wires as a **NoiseFrame** with 2-Bytes little-endian length prefix.
+Each message that is sent between negotiating parties is serialized into a byte array that is sent
+through the wires as a **NoiseFrame** with 2-bytes little-endian (LE) length prefix.
 
 ### Primitives and their serialization
-
 Messages consist of primitives and are serialized as sequence of values.
 Primitives used during noise session are following:
 
 #### Numbers
-* Number such as `u32`, `u16` etc. are serialized as little-endian.
-* `MAGIC_NUMBER` used in NegotiationMessage is a constant that is fixed to `MAGIC_NUMBER = 861033555`
-  (where 861033555 corresponds to LE the binary representation `b"STR3"`
+* Number such as `u32`, `u16` etc. are serialized as LE
+* `MAGIC_NUMBER` used in `NegotiationMessage` is a constant that is fixed to
+  `MAGIC_NUMBER = 861033555` (where 861033555 corresponds to LE the binary representation
+  `b"STR3"`)
 
 #### Seq0_255 
-* sequence of max length 255
-* prefixed 1 Byte with length information followed by given number of serialized items.
+* Sequence of max length 255
+* Prefixed 1-byte with length information followed by given number of serialized items
 
 #### Static public key
-* is part of noise handshake message. It's fixed size array given by the handshake algorithm.
-* not prefixed
+* Is part of noise handshake message. It's fixed size array given by the handshake algorithm
+* Not prefixed
 
 #### Signature
-* ed25519 signature
+* ED25519 signature
 * 64-bytes array
-* not prefix
+* Not prefix
 
 #### SignatureNoiseMessage
-* sequence of `u16`, `u32`, `u32` and `Signature` that represent version, valid_from, not_valid_after and signature
-  fields used by Initiator to reconstruct the certificate and validate authenticate the Responder.
+* Sequence of `u16`, `u32`, `u32` and `Signature` that represents `version`, `valid_from`,
+  `not_valid_after` and `signature` fields used by `Initiator` to reconstruct the certificate and
+  validate/authenticate the `Responder`
 
 #### Algorithm
-* u32 number indicating [noise protocol name](http://noiseprotocol.org/noise.html#protocol-names).
+* `u32` number indicating [noise protocol name](http://noiseprotocol.org/noise.html#protocol-names)
 * There are currently 2 supported protocols:
-  * `Noise_NX_25519_AESGCM_BLAKE2s` - encoded with number 1196639553 (which in binary form corresponds to `b"AESG"`)
-  * `Noise_NX_25519_ChaChaPoly_BLAKE2s` - encoded with number 1212368963 (which in binary form corresponds to `b"CHCH"`)
-* After the algorithm negotiation phase finishes, both Initiator and Responder use the negotiated name to perform
-  handshake and establish encrypted session
+  * `Noise_NX_25519_AESGCM_BLAKE2s` - encoded with number 1196639553 (which in binary form
+     corresponds to `b"AESG"`)
+  * `Noise_NX_25519_ChaChaPoly_BLAKE2s` - encoded with number 1212368963 (which in binary form
+     corresponds to `b"CHCH"`)
+* After the algorithm negotiation phase finishes, both `Initiator` and `Responder` use the
+  negotiated name to perform handshake and establish an encrypted session
 
 #### Prologue
 * Serialized as `Seq0_255<Algorithm>` followed by `Algorithm`
-* Serialized form is not sent directly through connection. Instead, it is committed to the handshake
-  state through [prologue](http://noiseprotocol.org/noise.html#prologue) (more on that later).
-  This is done to ensure the integrity during the negotiation phase. If both parties end up committing
-  different prologues, handshake will fail.
+* Serialized form is not sent directly through connection. Instead, it is committed to the
+  handshake state through [prologue](http://noiseprotocol.org/noise.html#prologue) (more on that
+  later). This is done to ensure the integrity during the negotiation phase. If both parties end up
+  committing different prologues, handshake will fail
 
 
 ### Example
-Following picture shows example serialization of NegotiationMessage with list of two algorithms.
+Following picture shows example serialization of `NegotiationMessage` with list of two algorithms.
 
 ![framing](./framing.svg)
 
 ## Algorithm negotiation
 Algorithm negotiation can be considered a zero'th step in the handshake.
-1. Initiator sends an initial message containing list algorithm that it supports.
-2. Server chooses one of them and sends its choice back.
+1. `Initiator` sends an initial message containing the list of algorithms it supports
+2. `Server` chooses one of the supported algorithms and sends its choice back
 
-First NegotiationMessage contains magic_number that is constant and fixed `MAGIC_NUMBER = 861033555`.
+First `NegotiationMessage` contains `magic_number` that is constant and fixed
+`MAGIC_NUMBER = 861033555`.
 
-Servers response contains only single algorithm choice, i. e. u32.
+`Server`'s response contains only single algorithm choice, i. e. `u32`.
 
 ## NX handshake
-After the negotiation phase is finished both parties construct prologues from the exchanged messages
-and commit it to the handshake state. Both must be identical, otherwise handshake fails. This provides
-integrity for the negotiation phase.
+After the negotiation phase is finished both parties construct prologues from the exchanged
+messages and commit it to the handshake state. Both must be identical, otherwise handshake fails.
+This provides integrity for the negotiation phase.
 
-Responder is initialized with `Certificate`.
-Certificate contains validity timestamps and server's static public key that is used during noise handshake. It is
-signed with Certification Authority whose public key is known to initiator.
+`Responder` is initialized with `Certificate`.
+`Certificate` contains validity timestamps and `Server`'s static public key that is used during
+noise handshake. It is signed with Certification `Authority` whose public key is known to
+`Initiator`.
 
-By validating the signature, initiator knows that the entity that it just performed handshake with and that
-it is about to start sending hash rate to *is approved* by the Certification Authority.
+By validating the signature, `Initiator` knows that the entity that it just performed the handshake
+with and that it is about to start sending hash rate to *is approved* by the Certification
+`Authority`.
 
 Handshake steps:
-1. Initiator sends ephemeral key within NoiseFrame (exact format follows from handshake algorithm and is mostly taken
-  care of by the library implementing Noise protocol)
-2. Responder sends their ephemeral and static public keys, performs Diffie-Hellman handshake provides an
-  encrypted `SignatureNoiseMessage` as a noise handshake payload (see noise specification). SignatureNoiseMessage
-  contains information necessary to reconstruct the certificate and validate the signature.
-3. If all handshake operations are successful and Certificate Signature is successfully validate against
-  CA public key, handshake phase if finished and encrypted session can be switched to *Transport State*
+1. `Initiator` sends ephemeral key within `NoiseFrame` (exact format follows from handshake
+   algorithm and is mostly taken care of by the library implementing the Noise protocol)
+2. `Responder` sends their ephemeral and static public keys, performs Diffie-Hellman handshake,
+   provides an encrypted `SignatureNoiseMessage` as a noise handshake payload (see noise
+   specification). `SignatureNoiseMessage` contains information necessary to reconstruct the
+   certificate and validate the signature
+3. If all handshake operations are successful and Certificate Signature is successfully validated
+   against the CA public key, the handshake phase is finished and the encrypted session can be
+   switched to *Transport State*
 
 ![handshake](./handshake.svg)
 
 ## Test vectors:
-keys are encoded using checked-base58.
+keys are encoded using `checked-base58`.
 
 Test authority keypair:
 ```json
@@ -110,7 +119,7 @@ Test server static keypair:
 }
 ```
 
-Test Certificate:
+Test `Certificate`:
 ```json
 {
   "version": 0,
@@ -122,7 +131,7 @@ Test Certificate:
 }
 ```
 
-Test SignatureNoiseMessage
+Test `SignatureNoiseMessage`:
 ```json
 {
   "version": 0,
@@ -132,7 +141,8 @@ Test SignatureNoiseMessage
 }
 ```
 
-Communication (all representations are hexadecimal and **don't** contain the NoiseFrame 2B length prefix):
+Communication (all representations are hexadecimal and does **NOT** contain the `NoiseFrame`
+2-bytes length prefix):
 ```
 Initiator ... Responder
 // Negotiation message (magic + 1 element array of algorithm
