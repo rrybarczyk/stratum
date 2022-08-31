@@ -223,30 +223,17 @@ impl Upstream {
                     }
                     // Relay the SV2 message to `Translator.upstream_translator.receiver` via
                     // the `UpstreamConnection.downstream_sender`
-                    Ok(SendTo::RelaySameMessageToSv1(message_to_translate)) => {
+                    Ok(SendTo::None(Some(message_to_translate))) => {
                         println!("\nTU SEND SV2 MSG TO TP: {:?}\n", &message_to_translate);
-                        // Relay the same message received from the Upstream role to `Translator`
+                        // Send the message received from the Upstream role to `Translator`
                         // to handle
                         let sender = self_
                             .safe_lock(|self_| self_.connection.sender_downstream.clone())
                             .unwrap();
                         sender.send(message_to_translate).await.unwrap();
                     }
-                    // No response is needed to be given to the SV2 Upstream role or the SV1
-                    // Downstream role
-                    Ok(SendTo::RelayNewMessageToSv2(_, _))
-                    | Ok(SendTo::RelaySameMessageToSv2(_))
-                    | Ok(SendTo::Multiple(_)) => {
-                        todo!("Handle unexpected `SendTo`s in Upstream");
-                        // /// Errors if a `SendTo::RelaySameMessageToSv2` or
-                        // `SendTo::RelayNewMessageToSv2` request is made on SV1/SV2 application
-                        // Error::UnsupportedRelayType,
-                        //     // Proxy does not support this type
-                        //     // Err(Error::ProxyDoesNotSupportMultiple
-                    }
-                    Ok(SendTo::None(None)) => {
-                        todo!("Handle None");
-                        // Probably just end up putting ()
+                    Ok(_) => {
+                        panic!()
                     }
                     Ok(SendTo::None(Some(_))) => todo!("Handle SendTo::Some(Some(m))"),
                     Err(_) => todo!("Handle `SendTo` error on Upstream"),
@@ -501,19 +488,8 @@ impl ParseUpstreamMiningMessages<Downstream, NullDownstreamMiningSelector, NoRou
         m: roles_logic_sv2::mining_sv2::NewExtendedMiningJob,
     ) -> Result<roles_logic_sv2::handlers::mining::SendTo<Downstream>, roles_logic_sv2::errors::Error>
     {
-        let message = Mining::NewExtendedMiningJob(NewExtendedMiningJob {
-            // Extended channel identifier, stable for whole connection lifetime. Used for broadcasting new
-            // jobs by the connection
-            channel_id: m.channel_id,
-            job_id: m.job_id,
-            future_job: m.future_job, // Maybe hard code to false for demo
-            version: m.version,
-            version_rolling_allowed: m.version_rolling_allowed,
-            merkle_path: m.merkle_path.clone().into_static(),
-            coinbase_tx_prefix: m.coinbase_tx_prefix.clone().into_static(),
-            coinbase_tx_suffix: m.coinbase_tx_suffix.clone().into_static(),
-        });
-        Ok(SendTo::RelaySameMessageToSv1(message))
+        let message = Mining::NewExtendedMiningJob(m.as_static());
+        Ok(SendTo::None(Some(message)))
     }
 
     /// Relay incoming `SetNewPrevHash` message to `Translator` to be handled. `SetNewPrevHash`
@@ -525,17 +501,8 @@ impl ParseUpstreamMiningMessages<Downstream, NullDownstreamMiningSelector, NoRou
         m: roles_logic_sv2::mining_sv2::SetNewPrevHash,
     ) -> Result<roles_logic_sv2::handlers::mining::SendTo<Downstream>, roles_logic_sv2::errors::Error>
     {
-        let message = Mining::SetNewPrevHash(SetNewPrevHash {
-            // Channel identifier, stable for whole connection lifetime. Used for broadcasting new
-            // jobs by the connection. Can be extended of standard channel (always extended for SV1
-            // Translator Proxy)
-            channel_id: m.channel_id,
-            job_id: m.job_id,
-            prev_hash: m.prev_hash.clone().into_static(),
-            min_ntime: m.min_ntime,
-            nbits: m.nbits,
-        });
-        Ok(SendTo::RelaySameMessageToSv1(message))
+        let message = Mining::SetNewPrevHash(m.as_static());
+        Ok(SendTo::None(Some(message)))
     }
 
     /// Handle SV2 `SetCustomMiningJobSuccess`.

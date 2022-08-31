@@ -72,18 +72,19 @@ impl TemplateRx {
             )
             .unwrap()
             {
-                roles_logic_sv2::handlers::SendTo_::RelayNewMessageToSv2(_, m) => match m {
-                    TemplateDistribution::CoinbaseOutputDataSize(_) => todo!(),
-                    TemplateDistribution::NewTemplate(m) => {
+                roles_logic_sv2::handlers::SendTo_::None(m) => match m {
+                    Some(TemplateDistribution::CoinbaseOutputDataSize(_)) => todo!(),
+                    Some(TemplateDistribution::NewTemplate(m)) => {
                         new_template_sender.send(m).await.unwrap()
                     }
-                    TemplateDistribution::RequestTransactionData(_) => todo!(),
-                    TemplateDistribution::RequestTransactionDataError(_) => todo!(),
-                    TemplateDistribution::RequestTransactionDataSuccess(_) => todo!(),
-                    TemplateDistribution::SetNewPrevHash(m) => {
+                    Some(TemplateDistribution::RequestTransactionData(_)) => todo!(),
+                    Some(TemplateDistribution::RequestTransactionDataError(_)) => todo!(),
+                    Some(TemplateDistribution::RequestTransactionDataSuccess(_)) => todo!(),
+                    Some(TemplateDistribution::SetNewPrevHash(m)) => {
                         new_prev_hash_sender.send(m).await.unwrap()
                     }
-                    TemplateDistribution::SubmitSolution(_) => todo!(),
+                    Some(TemplateDistribution::SubmitSolution(_)) => todo!(),
+                    None => todo!(),
                 },
                 _ => todo!(),
             }

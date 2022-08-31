@@ -8,10 +8,8 @@ use bitcoin::{
     util::{hash::bitcoin_merkle_root, psbt::serialize::Deserialize},
     Transaction,
 };
-use std::{
-    convert::TryInto,
-    sync::{Mutex as Mutex_, MutexGuard, PoisonError},
-}; //compact_target_from_u256
+pub use general_utils_sv2::mutex::Mutex;
+use std::convert::TryInto; //compact_target_from_u256
 
 /// Generator of unique ids
 #[derive(Debug, PartialEq)]
@@ -33,30 +31,6 @@ impl Id {
 impl Default for Id {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Safer Mutex wrapper
-#[derive(Debug)]
-pub struct Mutex<T: ?Sized>(Mutex_<T>);
-
-impl<T> Mutex<T> {
-    pub fn safe_lock<F, Ret>(&self, thunk: F) -> Result<Ret, PoisonError<MutexGuard<'_, T>>>
-    where
-        F: FnOnce(&mut T) -> Ret,
-    {
-        let mut lock = self.0.lock()?;
-        let return_value = thunk(&mut *lock);
-        drop(lock);
-        Ok(return_value)
-    }
-
-    pub fn new(v: T) -> Self {
-        Mutex(Mutex_::new(v))
-    }
-
-    pub fn to_remove(&self) -> Result<MutexGuard<'_, T>, PoisonError<MutexGuard<'_, T>>> {
-        self.0.lock()
     }
 }
 

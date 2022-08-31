@@ -808,6 +808,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "general_utils_sv2"
+version = "0.1.0"
+
+[[package]]
 name = "generic-array"
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1497,6 +1501,7 @@ dependencies = [
  "common_messages_sv2",
  "const_sv2",
  "framing_sv2",
+ "general_utils_sv2",
  "job_negotiation_sv2",
  "mining_sv2",
  "serde",

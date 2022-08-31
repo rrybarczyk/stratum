@@ -66,8 +66,7 @@ impl ParseDownstreamCommonMessages<NoRouting> for SetupConnectionHandler {
         use roles_logic_sv2::handlers::common::SendTo;
         let header_only = incoming.requires_standard_job();
         self.header_only = Some(header_only);
-        Ok(SendTo::RelayNewMessageToSv2(
-            Arc::new(Mutex::new(())),
+        Ok(SendTo::RelayNewMessage(
             CommonMessages::SetupConnectionSuccess(SetupConnectionSuccess {
                 flags: 0,
                 used_version: 2,
