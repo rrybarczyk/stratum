@@ -10,6 +10,7 @@ use proxy::next_mining_notify::NextMiningNotify;
 use proxy_config::ProxyConfig;
 use roles_logic_sv2::utils::Mutex;
 
+const EXTRNONCE_LEN: usize = 32;
 const SELF_EXTRNONCE_LEN: usize = 2;
 
 use async_channel::{bounded, Receiver, Sender};
@@ -61,7 +62,6 @@ async fn main() {
     let (sender_extranonce, recv_extranonce) = bounded(1);
     let target = Arc::new(Mutex::new(vec![0; 32]));
 
-    // Sender/Receiver to send SV1 `mining.notify` message from the `Bridge` to the `Downstream`
     let (sender_mining_notify_bridge, recv_mining_notify_downstream): (
         Sender<server_to_client::Notify>,
         Receiver<server_to_client::Notify>,
@@ -98,6 +98,10 @@ async fn main() {
 
     // Start receiving messages from the SV2 Upstream role
     upstream_sv2::Upstream::parse_incoming(upstream.clone());
+
+    // Start receiving submit from the SV1 Downstream role
+    upstream_sv2::Upstream::handle_submit(upstream.clone());
+    let next_mining_notify = Arc::new(Mutex::new(NextMiningNotify::new()));
 
     // Start task handler to receive submits from the SV1 Downstream role once it connects
     upstream_sv2::Upstream::handle_submit(upstream.clone());

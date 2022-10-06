@@ -9,7 +9,7 @@ use async_std::{
 use bigint;
 use roles_logic_sv2::{
     common_properties::{IsDownstream, IsMiningDownstream},
-    mining_sv2::ExtendedExtranonce,
+    mining_sv2::{ExtendedExtranonce, Extranonce},
     utils::Mutex,
 };
 use std::{net::SocketAddr, sync::Arc};
@@ -27,8 +27,8 @@ pub struct Downstream {
     authorized_names: Vec<String>,
     extranonce: ExtendedExtranonce,
     /// `extranonce1` to be sent to the Downstream in the SV1 `mining.subscribe` message response.
-    //extranonce1: Vec<u8>,
-    //extranonce2_size: usize,
+    // extranonce1: Vec<u8>,
+    // extranonce2: Vec<u8>,
     /// Version rolling mask bits
     version_rolling_mask: Option<HexU32Be>,
     /// Minimum version rolling mask bits size
@@ -225,28 +225,28 @@ impl Downstream {
         last_notify: Arc<Mutex<Option<server_to_client::Notify>>>,
         target: Arc<Mutex<Vec<u8>>>,
     ) {
-        let downstream_listener = TcpListener::bind(downstream_addr).await.unwrap();
-        let mut downstream_incoming = downstream_listener.incoming();
-        while let Some(stream) = downstream_incoming.next().await {
-            let stream = stream.expect("Err on SV1 Downstream connection stream");
-            extended_extranonce.next_extended(0).unwrap();
-            let extended_extranonce = extended_extranonce.clone();
-            println!(
-                "\nPROXY SERVER - ACCEPTING FROM DOWNSTREAM: {}\n",
-                stream.peer_addr().unwrap()
-            );
-            let server = Downstream::new(
-                stream,
-                submit_sender.clone(),
-                receiver_mining_notify.clone(),
-                extended_extranonce,
-                last_notify.clone(),
-                target.clone(),
-            )
-            .await
-            .unwrap();
-            Arc::new(Mutex::new(server));
-        }
+        task::spawn(async move {
+            let downstream_listener = TcpListener::bind(downstream_addr).await.unwrap();
+            let mut downstream_incoming = downstream_listener.incoming();
+            while let Some(stream) = downstream_incoming.next().await {
+                let stream = stream.expect("Err on SV1 Downstream connection stream");
+                println!(
+                    "\nPROXY SERVER - ACCEPTING FROM DOWNSTREAM: {}\n",
+                    stream.peer_addr().unwrap()
+                );
+                let server = Downstream::new(
+                    stream,
+                    submit_sender.clone(),
+                    receiver_mining_notify.clone(),
+                    extended_extranonce.clone(),
+                    last_notify.clone(),
+                    target.clone(),
+                )
+                .await
+                .unwrap();
+                Arc::new(Mutex::new(server));
+            }
+        });
     }
 
     /// As SV1 messages come in, determines if the message response needs to be translated to SV2
