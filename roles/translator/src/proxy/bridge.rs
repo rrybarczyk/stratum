@@ -65,6 +65,7 @@ pub struct Bridge {
     // TODO: put sender her eor in Bridge to update Dowstream
     sender_mining_notify: Sender<server_to_client::Notify>,
     channel_sequence_id: Id,
+    last_notify: Arc<Mutex<Option<server_to_client::Notify>>>,
 }
 
 impl Bridge {
@@ -76,6 +77,7 @@ impl Bridge {
         new_extended_mining_job: Receiver<NewExtendedMiningJob<'static>>,
         next_mining_notify: Arc<Mutex<NextMiningNotify>>,
         sender_mining_notify: Sender<server_to_client::Notify>,
+        last_notify: Arc<Mutex<Option<server_to_client::Notify>>>,
     ) -> Self {
         Self {
             submit_from_sv1,
@@ -85,6 +87,7 @@ impl Bridge {
             next_mining_notify,
             sender_mining_notify,
             channel_sequence_id: Id::new(),
+            last_notify,
         }
     }
 
@@ -97,7 +100,9 @@ impl Bridge {
 
     fn handle_downstream_share_submission(self_: Arc<Mutex<Self>>) {
         task::spawn(async move {
+            let mut counter = 0;
             loop {
+                counter += 1;
                 let submit_recv = self_.safe_lock(|s| s.submit_from_sv1.clone()).unwrap();
                 let sv1_submit = submit_recv.clone().recv().await.unwrap();
                 let channel_sequence_id =
@@ -105,7 +110,10 @@ impl Bridge {
                 let sv2_submit: SubmitSharesExtended =
                     Self::translate_submit(channel_sequence_id, sv1_submit).unwrap();
                 let submit_to_sv2 = self_.safe_lock(|s| s.submit_to_sv2.clone()).unwrap();
-                submit_to_sv2.send(sv2_submit).await.unwrap();
+                if counter % 1000 == 0 {
+                    counter = 0;
+                    submit_to_sv2.send(sv2_submit).await.unwrap();
+                }
             }
         });
     }
@@ -140,7 +148,6 @@ impl Bridge {
                     self_.safe_lock(|r| r.set_new_prev_hash.clone()).unwrap();
                 let sv2_set_new_prev_hash: SetNewPrevHash =
                     set_new_prev_hash_recv.clone().recv().await.unwrap();
-                println!("SV2 SET NEW PREV HASH: {:?}", &sv2_set_new_prev_hash);
                 self_
                     .safe_lock(|s| {
                         s.next_mining_notify
@@ -164,7 +171,8 @@ impl Bridge {
                 let sv1_notify_msg =
                     sv1_notify_msg.expect("Error creating `mining.Notify` from `SetNewPrevHash`");
                 if let Some(msg) = sv1_notify_msg {
-                    println!("SET_NEW_PREV_HASH as mining.notify: {:?}", &msg);
+                    let last_notify = self_.safe_lock(|s| s.last_notify.clone()).unwrap();
+                    last_notify.safe_lock(|s| {let _ = s.insert(msg.clone());}).unwrap();
                     sender_mining_notify.send(msg).await.unwrap();
                 }
             }
@@ -183,7 +191,6 @@ impl Bridge {
                         .recv()
                         .await
                         .unwrap();
-                println!("SV2 SET NEW EXT MJ: {:?}", &sv2_new_extended_mining_job);
                 self_
                     .safe_lock(|s| {
                         s.next_mining_notify
@@ -205,7 +212,8 @@ impl Bridge {
                 let sv1_notify_msg = sv1_notify_msg
                     .expect("Error creating `mining.Notify` from `NewExtendedMiningJob`");
                 if let Some(msg) = sv1_notify_msg {
-                    println!("NEW_EXTENDED_MINING_JOB as mining.notify: {:?}", &msg);
+                    let last_notify = self_.safe_lock(|s| s.last_notify.clone()).unwrap();
+                    last_notify.safe_lock(|s| {let _ = s.insert(msg.clone());}).unwrap();
                     sender_mining_notify.send(msg).await.unwrap();
                 }
             }

@@ -29,11 +29,13 @@ use std::{net::SocketAddr, sync::Arc};
 #[derive(Debug, Clone)]
 pub struct Upstream {
     channel_id: Option<u32>,
+    job_id: Option<u32>,
     connection: UpstreamConnection,
     submit_from_dowstream: Receiver<SubmitSharesExtended<'static>>,
     new_prev_hash_sender: Sender<SetNewPrevHash<'static>>,
     new_extended_mining_job_sender: Sender<NewExtendedMiningJob<'static>>,
     extranonce_sender: Sender<ExtendedExtranonce>,
+    //target_sender: Sender<Vec<u8>>,
     /// Minimum `extranonce2` size. Initially requested in the `proxy-config.toml`, and ultimately
     /// set by the SV2 Upstream via the SV2 `OpenExtendedMiningChannelSuccess` message.
     pub min_extranonce_size: u16,
@@ -83,6 +85,7 @@ impl Upstream {
             new_prev_hash_sender,
             new_extended_mining_job_sender,
             channel_id: None,
+            job_id: None,
             min_extranonce_size,
             extranonce_sender,
         })))
@@ -125,12 +128,11 @@ impl Upstream {
         // Send open channel request before returning
         let user_identity = "ABC".to_string().try_into()?;
         let min_extranonce_size = self_.safe_lock(|s| s.min_extranonce_size).unwrap();
-        println!("\n MIN EXTSIZE: {:?}", &min_extranonce_size);
         let open_channel = Mining::OpenExtendedMiningChannel(OpenExtendedMiningChannel {
             request_id: 0.into(),               // TODO
             user_identity,                      // TODO
-            nominal_hash_rate: 5.4,             // TODO
-            max_target: u256_from_int(567_u64), // TODO
+            nominal_hash_rate: 10_000_000_000.0,             // TODO
+            max_target: u256_from_int(u64::MAX), // TODO
             min_extranonce_size,
         });
         let sv2_frame: StdFrame = Message::Mining(open_channel).try_into()?;
@@ -150,7 +152,6 @@ impl Upstream {
                 let mut incoming: StdFrame = incoming
                     .try_into()
                     .expect("Err converting received frame into `StdFrame`");
-                println!("TU RECV SV2 FROM UPSTREAM: {:?}", &incoming);
                 // On message receive, get the message type from the message header and get the
                 // message payload
                 let message_type = incoming
@@ -178,7 +179,6 @@ impl Upstream {
                 match next_message_to_send {
                     // No translation required, simply respond to SV2 pool w a SV2 message
                     Ok(SendTo::Respond(message_for_upstream)) => {
-                        println!("TU SEND DIRECTLY TO UPSTREAM: {:?}", &message_for_upstream);
 
                         let message = Message::Mining(message_for_upstream);
                         let frame: StdFrame = message
@@ -199,6 +199,7 @@ impl Upstream {
                     Ok(SendTo::None(Some(m))) => {
                         match m {
                             Mining::OpenExtendedMiningChannelSuccess(m) => {
+                                let target = m.target.to_vec();
                                 let extranonce: Vec<u8> =
                                     m.extranonce_prefix.inner_as_ref().to_vec();
 
@@ -233,17 +234,26 @@ impl Upstream {
                                 let sender =
                                     self_.safe_lock(|s| s.extranonce_sender.clone()).unwrap();
                                 sender.send(extended).await.unwrap();
+                                //let sender_target =
+                                //    self_.safe_lock(|s| s.target_sender.clone()).unwrap();
+                                //sender_target.send(target).await.unwrap()
                             }
                             Mining::NewExtendedMiningJob(m) => {
+                                let job_id = m.job_id;
                                 let sender = self_
                                     .safe_lock(|s| s.new_extended_mining_job_sender.clone())
                                     .unwrap();
+                                self_.safe_lock(|s| {let _ = s.job_id.insert(job_id);}).unwrap();
                                 sender.send(m).await.unwrap();
                             }
                             Mining::SetNewPrevHash(m) => {
                                 let sender =
                                     self_.safe_lock(|s| s.new_prev_hash_sender.clone()).unwrap();
                                 sender.send(m).await.unwrap();
+                            }
+                            Mining::SetTarget(_m) => {
+                                // TODO
+                                ()
                             }
                             // impossible state
                             _ => panic!(),
@@ -269,6 +279,8 @@ impl Upstream {
                     .safe_lock(|s| s.submit_from_dowstream.clone())
                     .unwrap();
                 let mut sv2_submit: SubmitSharesExtended = receiver.recv().await.unwrap();
+                sv2_submit.channel_id = self_.safe_lock(|s|s.channel_id.unwrap()).unwrap();
+                sv2_submit.job_id = self_.safe_lock(|s|s.job_id.unwrap()).unwrap();
                 sv2_submit.channel_id = self_
                     .safe_lock(|s| {
                         s.channel_id
@@ -276,6 +288,7 @@ impl Upstream {
                     })
                     .unwrap();
 
+                println!("SUBMITTING SHARE {:#?}", sv2_submit);
                 let message = Message::Mining(
                     roles_logic_sv2::parsers::Mining::SubmitSharesExtended(sv2_submit),
                 );
@@ -290,6 +303,7 @@ impl Upstream {
                     .safe_lock(|self_| self_.connection.sender.clone())
                     .unwrap();
                 sender.send(frame).await.unwrap();
+                println!("SUBMITTED");
             }
         });
     }
@@ -421,7 +435,6 @@ impl ParseUpstreamMiningMessages<Downstream, NullDownstreamMiningSelector, NoRou
         m: roles_logic_sv2::mining_sv2::OpenExtendedMiningChannelSuccess,
     ) -> Result<roles_logic_sv2::handlers::mining::SendTo<Downstream>, roles_logic_sv2::errors::Error>
     {
-        println!("\n\nRR IN OEMCS\n\n");
         let extranonce_size_bytes = m.extranonce_size / 8;
         if self.min_extranonce_size < extranonce_size_bytes {
             panic!(
@@ -432,6 +445,7 @@ impl ParseUpstreamMiningMessages<Downstream, NullDownstreamMiningSelector, NoRou
         // Set the `min_extranonce_size` in accordance to the SV2 Pool
         self.min_extranonce_size = m.extranonce_size;
 
+        println!("{:?}", m.channel_id);
         self.channel_id = Some(m.channel_id);
         let m = Mining::OpenExtendedMiningChannelSuccess(OpenExtendedMiningChannelSuccess {
             request_id: m.request_id,
@@ -494,6 +508,7 @@ impl ParseUpstreamMiningMessages<Downstream, NullDownstreamMiningSelector, NoRou
         //     extranonce_prefix: m.extranonce_prefix.clone().into_static(),
         // });
         // Ok(SendTo::Respond(message))
+        println!("SUBMIT SHARE SUCCESS");
         Ok(SendTo::None(None))
     }
 
@@ -514,6 +529,7 @@ impl ParseUpstreamMiningMessages<Downstream, NullDownstreamMiningSelector, NoRou
         //     error_code: m.error_code.clone().into_static(),
         // });
         // Ok(SendTo::Respond(message))
+        println!("SUBMIT SHARE ERROR");
         Ok(SendTo::None(None))
     }
 
@@ -597,18 +613,15 @@ impl ParseUpstreamMiningMessages<Downstream, NullDownstreamMiningSelector, NoRou
     /// RR: Not used in demo, target is hardcoded.
     fn handle_set_target(
         &mut self,
-        _: roles_logic_sv2::mining_sv2::SetTarget,
+        m: roles_logic_sv2::mining_sv2::SetTarget,
     ) -> Result<roles_logic_sv2::handlers::mining::SendTo<Downstream>, roles_logic_sv2::errors::Error>
     {
-        // let message = Mining::SetTarget(SetTarget {
-        //     Channel identifier, stable for whole connection lifetime. Used for broadcasting new
-        //     jobs by the connection. Can be extended of standard channel (always extended for SV1
-        //     Translator Proxy)
-        //     channel_id: m.channel_id,
-        //     maximum_target: m.maximum_target.clone().into_static(),
-        // });
-        // Ok(SendTo::Respond(message))
-        unimplemented!()
+        let m = roles_logic_sv2::mining_sv2::SetTarget {
+            channel_id: m.channel_id,
+            maximum_target: m.maximum_target.into_static(),
+        };
+        println!("SET TARGET TO: {:?}", m.maximum_target);
+        Ok(SendTo::None(Some(roles_logic_sv2::parsers::Mining::SetTarget(m))))
     }
 
     /// Handle SV2 `Reconnect` message.

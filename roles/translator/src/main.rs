@@ -101,6 +101,7 @@ async fn main() {
     // Start receiving submit from the SV1 Downstream role
     upstream_sv2::Upstream::handle_submit(upstream.clone());
     let next_mining_notify = Arc::new(Mutex::new(NextMiningNotify::new()));
+    let last_notify: Arc<Mutex<Option<server_to_client::Notify>>> = Arc::new(Mutex::new(None));
 
     // Instantiates a new `Bridge` and begins handling incoming messages
     proxy::Bridge::new(
@@ -110,8 +111,10 @@ async fn main() {
         recv_new_extended_mining_job,
         next_mining_notify,
         sender_mining_notify_bridge,
+        last_notify.clone(),
     )
     .start();
+
 
     // Format `Downstream` connection address
     let downstream_addr = SocketAddr::new(
@@ -130,6 +133,7 @@ async fn main() {
         recv_mining_notify_downstream,
         extranonce_len - min_extranonce_size - SELF_EXTRNONCE_LEN,
         extended_extranonce,
+        last_notify,
     );
 
     // If this loop is not here, the proxy does not stay live long enough for a Downstream to
