@@ -59,6 +59,7 @@ async fn main() {
     let (sender_new_extended_mining_job, recv_new_extended_mining_job) = bounded(10);
 
     let (sender_extranonce, recv_extranonce) = bounded(1);
+    let target = Arc::new(Mutex::new(vec![0;32]));
 
     // TODO add a channel to send new jobs from Bridge to Downstream
     // Put NextMiningNotify in a mutex
@@ -84,6 +85,7 @@ async fn main() {
         sender_new_extended_mining_job,
         proxy_config.min_extranonce2_size,
         sender_extranonce,
+        target.clone(),
     )
     .await
     .unwrap();
@@ -134,6 +136,7 @@ async fn main() {
         extranonce_len - min_extranonce_size - SELF_EXTRNONCE_LEN,
         extended_extranonce,
         last_notify,
+        target,
     );
 
     // If this loop is not here, the proxy does not stay live long enough for a Downstream to

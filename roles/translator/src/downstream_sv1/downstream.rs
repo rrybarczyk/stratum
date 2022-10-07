@@ -17,6 +17,7 @@ use v1::{
     utils::{self, HexBytes, HexU32Be},
     IsServer,
 };
+use bigint;
 
 /// Handles the sending and receiving of messages to and from an SV2 Upstream role (most typically
 /// a SV2 Pool server).
@@ -32,6 +33,7 @@ pub struct Downstream {
     version_rolling_min_bit: Option<HexU32Be>,
     submit_sender: Sender<v1::client_to_server::Submit>,
     sender_outgoing: Sender<json_rpc::Message>,
+    target: Arc<Mutex<Vec<u8>>>,
 }
 
 impl Downstream {
@@ -42,6 +44,7 @@ impl Downstream {
         extranonce2_size: usize,
         extranonce: Extranonce,
         last_notify: Arc<Mutex<Option<server_to_client::Notify>>>,
+        target: Arc<Mutex<Vec<u8>>>,
     ) -> ProxyResult<Arc<Mutex<Self>>> {
         let stream = std::sync::Arc::new(stream);
 
@@ -65,6 +68,7 @@ impl Downstream {
             version_rolling_min_bit: None,
             submit_sender,
             sender_outgoing,
+            target: target.clone(),
         }));
         let self_ = downstream.clone();
 
@@ -108,6 +112,7 @@ impl Downstream {
             }
         });
 
+
         let downstream_clone = downstream.clone();
         // RR TODO
         task::spawn(async move {
@@ -117,9 +122,14 @@ impl Downstream {
                 let is_a: bool = downstream_clone
                     .safe_lock(|d| d.is_authorized("user"))
                     .unwrap();
-                let is_a: bool = true;
+                let is_a: bool = true; // TODO why this is not get authorized ?
+
                 if is_a && ! first_sent {
                     async_std::task::sleep(std::time::Duration::from_secs(5)).await;
+                    let target_2: bigint::U256 = target.safe_lock(|t|t.clone()).unwrap()[..].try_into().unwrap();
+                    let messsage = Self::get_set_difficulty(target_2);
+                    Downstream::send_message_downstream(downstream_clone.clone(), messsage).await;
+
                     let sv1_mining_notify_msg = last_notify.safe_lock(|s| s.clone()).unwrap().unwrap();
                     let messsage: json_rpc::Message = sv1_mining_notify_msg.try_into().unwrap();
                     Downstream::send_message_downstream(downstream_clone.clone(), messsage).await;
@@ -133,11 +143,39 @@ impl Downstream {
                 }
             }
         });
+        // Update target
+        let downstream_clone = downstream.clone();
+        task::spawn(async move {
+            let target = downstream_clone.safe_lock(|t| t.target.clone()).unwrap();
+            let mut last_target = target.safe_lock(|t| t.clone()).unwrap();
+            loop {
+                let target = downstream_clone.clone().safe_lock(|t| t.target.clone()).unwrap();
+                let target = target.safe_lock(|t| t.clone()).unwrap();
+                if target != last_target {
+                    last_target = target;
+                    let target_2: bigint::U256 = last_target[..].try_into().unwrap();
+                    let message = Self::get_set_difficulty(target_2);
+                    Downstream::send_message_downstream(downstream_clone.clone(), message).await;
+                }
+            }
+        });
 
         Ok(downstream)
     }
 
-    /// Accept connections from one or more SV1 Downstream roles (SV1 Mining Devices).
+    fn get_set_difficulty(target_2: bigint::U256) -> json_rpc::Message {
+        let target_1 = bigint::U256::from_dec_str("26959535291011309493156476344723991336010898738574164086137773096960").unwrap();
+        let diff = target_1.overflowing_div(target_2);
+        let diff = diff.0.to_string();
+        let diff: f64 = diff.parse().unwrap();
+        let set_target = v1::methods::server_to_client::SetDifficulty {
+            value: diff,
+        };
+        let messsage: json_rpc::Message = set_target.try_into().unwrap();
+        messsage
+    }               
+                    
+    ///             Accept connections from one or more SV1 Downstream roles (SV1 Mining Devices).
     /// Before creating new Downstream
     /// If we create Downstream + right after the Downstream sends configure, auth, subscribe
     /// Now we have next_mining_notify, when we create Downsteram, we have to spawn a new task that
@@ -158,6 +196,7 @@ impl Downstream {
         extranonce2_size: usize,
         mut extended_extranonce: ExtendedExtranonce,
         last_notify: Arc<Mutex<Option<server_to_client::Notify>>>,
+        target: Arc<Mutex<Vec<u8>>>,
     ) {
         task::spawn(async move {
             let downstream_listener = TcpListener::bind(downstream_addr).await.unwrap();
@@ -175,6 +214,7 @@ impl Downstream {
                     extranonce2_size,
                     extended_extranonce.next_extended(extranonce2_size).unwrap(),
                     last_notify.clone(),
+                    target.clone(),
                 )
                 .await
                 .unwrap();

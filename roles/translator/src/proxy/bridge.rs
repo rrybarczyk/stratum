@@ -110,10 +110,11 @@ impl Bridge {
                 let sv2_submit: SubmitSharesExtended =
                     Self::translate_submit(channel_sequence_id, sv1_submit).unwrap();
                 let submit_to_sv2 = self_.safe_lock(|s| s.submit_to_sv2.clone()).unwrap();
-                if counter % 1000 == 0 {
-                    counter = 0;
-                    submit_to_sv2.send(sv2_submit).await.unwrap();
-                }
+                submit_to_sv2.send(sv2_submit).await.unwrap();
+                //if counter % 1000 == 0 {
+                //    counter = 0;
+                //    submit_to_sv2.send(sv2_submit).await.unwrap();
+                //}
             }
         });
     }

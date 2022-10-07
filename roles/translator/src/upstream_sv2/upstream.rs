@@ -35,7 +35,7 @@ pub struct Upstream {
     new_prev_hash_sender: Sender<SetNewPrevHash<'static>>,
     new_extended_mining_job_sender: Sender<NewExtendedMiningJob<'static>>,
     extranonce_sender: Sender<ExtendedExtranonce>,
-    //target_sender: Sender<Vec<u8>>,
+    target: Arc<Mutex<Vec<u8>>>,
     /// Minimum `extranonce2` size. Initially requested in the `proxy-config.toml`, and ultimately
     /// set by the SV2 Upstream via the SV2 `OpenExtendedMiningChannelSuccess` message.
     pub min_extranonce_size: u16,
@@ -55,6 +55,7 @@ impl Upstream {
         new_extended_mining_job_sender: Sender<NewExtendedMiningJob<'static>>,
         min_extranonce_size: u16,
         extranonce_sender: Sender<ExtendedExtranonce>,
+        target: Arc<Mutex<Vec<u8>>>,
     ) -> ProxyResult<Arc<Mutex<Self>>> {
         // Connect to the SV2 Upstream role
         let socket = TcpStream::connect(address).await?;
@@ -88,6 +89,7 @@ impl Upstream {
             job_id: None,
             min_extranonce_size,
             extranonce_sender,
+            target,
         })))
     }
 
@@ -234,11 +236,13 @@ impl Upstream {
                                 let sender =
                                     self_.safe_lock(|s| s.extranonce_sender.clone()).unwrap();
                                 sender.send(extended).await.unwrap();
-                                //let sender_target =
-                                //    self_.safe_lock(|s| s.target_sender.clone()).unwrap();
-                                //sender_target.send(target).await.unwrap()
+                                let t =
+                                    self_.safe_lock(|s| s.target.clone()).unwrap();
+                                t.safe_lock(|t| {*t = target;}).unwrap();
+
                             }
                             Mining::NewExtendedMiningJob(m) => {
+                                println!("NEW MINING JOB");
                                 let job_id = m.job_id;
                                 let sender = self_
                                     .safe_lock(|s| s.new_extended_mining_job_sender.clone())
@@ -247,13 +251,10 @@ impl Upstream {
                                 sender.send(m).await.unwrap();
                             }
                             Mining::SetNewPrevHash(m) => {
+                                println!("NEW PREV HASH");
                                 let sender =
                                     self_.safe_lock(|s| s.new_prev_hash_sender.clone()).unwrap();
                                 sender.send(m).await.unwrap();
-                            }
-                            Mining::SetTarget(_m) => {
-                                // TODO
-                                ()
                             }
                             // impossible state
                             _ => panic!(),
@@ -621,7 +622,8 @@ impl ParseUpstreamMiningMessages<Downstream, NullDownstreamMiningSelector, NoRou
             maximum_target: m.maximum_target.into_static(),
         };
         println!("SET TARGET TO: {:?}", m.maximum_target);
-        Ok(SendTo::None(Some(roles_logic_sv2::parsers::Mining::SetTarget(m))))
+        self.target.safe_lock(|t| {*t = m.maximum_target.to_vec()}).unwrap();
+        Ok(SendTo::None(None))
     }
 
     /// Handle SV2 `Reconnect` message.
