@@ -163,11 +163,14 @@ impl Downstream {
         Ok(downstream)
     }
 
+    // TODO need to be fixed
     fn get_set_difficulty(target_2: bigint::U256) -> json_rpc::Message {
         let target_1 = bigint::U256::from_dec_str("26959535291011309493156476344723991336010898738574164086137773096960").unwrap();
         let diff = target_1.overflowing_div(target_2);
         let diff = diff.0.to_string();
         let diff: f64 = diff.parse().unwrap();
+        println!("SET DIFFICULTY TO: {}", diff);
+        // 1502588028741811700000000000000000000000000000000
         let set_target = v1::methods::server_to_client::SetDifficulty {
             value: diff,
         };
