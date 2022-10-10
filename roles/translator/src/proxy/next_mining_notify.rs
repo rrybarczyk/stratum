@@ -64,6 +64,7 @@ impl NextMiningNotify {
             // TODO: Check endianness
             // U256<'static> -> PrevHash
             let prev_hash = PrevHash((&new_prev_hash.prev_hash).to_vec());
+            println!("\nRR PREV HASH: {:?}\n", &prev_hash);
 
             // TODO: Check endianness
             // B064K<'static'> -> HexBytes
@@ -99,6 +100,7 @@ impl NextMiningNotify {
                 time,
                 clean_jobs,
             };
+            println!("\nNOTIFY RES: {:?}\n", &notify_response);
             Ok(Some(notify_response))
         } else {
             Ok(None)

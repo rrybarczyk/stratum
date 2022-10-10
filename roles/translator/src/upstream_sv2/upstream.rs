@@ -295,7 +295,11 @@ impl Upstream {
                 //     })
                 //     .unwrap();
 
-                println!("SUBMITTING SHARE {:#?}", sv2_submit);
+                println!("SUBMITTING SHARE {:?}", sv2_submit);
+                println!(
+                    "SUBMITTING SHARE channel_id: {}, job_id: {}, sequence_number {}",
+                    sv2_submit.channel_id, sv2_submit.job_id, sv2_submit.sequence_number
+                );
                 let message = Message::Mining(
                     roles_logic_sv2::parsers::Mining::SubmitSharesExtended(sv2_submit),
                 );
