@@ -133,15 +133,9 @@ async fn main() {
         downstream_addr,
         sender_submit_from_sv1,
         recv_mining_notify_downstream,
-        extranonce_len - min_extranonce_size - SELF_EXTRNONCE_LEN,
+        extranonce_len - min_extranonce_size - (SELF_EXTRNONCE_LEN -1 ),
         extended_extranonce,
         last_notify,
         target,
-    );
-
-    // If this loop is not here, the proxy does not stay live long enough for a Downstream to
-    // connect
-    loop {
-        task::sleep(Duration::from_secs(1)).await;
-    }
+    ).await;
 }

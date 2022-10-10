@@ -31,15 +31,16 @@ pub struct Downstream {
     //extranonce2_size: usize,
     version_rolling_mask: Option<HexU32Be>,
     version_rolling_min_bit: Option<HexU32Be>,
-    submit_sender: Sender<v1::client_to_server::Submit>,
+    submit_sender: Sender<(v1::client_to_server::Submit, Vec<u8>)>,
     sender_outgoing: Sender<json_rpc::Message>,
     target: Arc<Mutex<Vec<u8>>>,
+    first_job_received: bool,
 }
 
 impl Downstream {
     pub async fn new(
         stream: TcpStream,
-        submit_sender: Sender<v1::client_to_server::Submit>,
+        submit_sender: Sender<(v1::client_to_server::Submit, Vec<u8>)>,
         mining_notify_receiver: Receiver<server_to_client::Notify>,
         extranonce2_size: usize,
         extranonce: Extranonce,
@@ -69,6 +70,7 @@ impl Downstream {
             submit_sender,
             sender_outgoing,
             target: target.clone(),
+            first_job_received: false,
         }));
         let self_ = downstream.clone();
 
@@ -120,12 +122,10 @@ impl Downstream {
             loop {
                 // Get receiver
                 let is_a: bool = downstream_clone
-                    .safe_lock(|d| d.is_authorized("user"))
+                    .safe_lock(|d| !d.authorized_names.is_empty())
                     .unwrap();
-                let is_a: bool = true; // TODO why this is not get authorized ?
 
                 if is_a && ! first_sent {
-                    async_std::task::sleep(std::time::Duration::from_secs(5)).await;
                     let target_2: bigint::U256 = target.safe_lock(|t|t.clone()).unwrap()[..].try_into().unwrap();
                     let messsage = Self::get_set_difficulty(target_2);
                     Downstream::send_message_downstream(downstream_clone.clone(), messsage).await;
@@ -133,6 +133,7 @@ impl Downstream {
                     let sv1_mining_notify_msg = last_notify.safe_lock(|s| s.clone()).unwrap().unwrap();
                     let messsage: json_rpc::Message = sv1_mining_notify_msg.try_into().unwrap();
                     Downstream::send_message_downstream(downstream_clone.clone(), messsage).await;
+                    downstream_clone.clone().safe_lock(|s| {s.first_job_received = true;}).unwrap();
                     first_sent = true;
                 }
                 else if is_a {
@@ -172,13 +173,13 @@ impl Downstream {
         println!("SET DIFFICULTY TO: {}", diff);
         // 1502588028741811700000000000000000000000000000000
         let set_target = v1::methods::server_to_client::SetDifficulty {
-            value: diff,
+            value: 10000.0,
         };
         let messsage: json_rpc::Message = set_target.try_into().unwrap();
         messsage
     }               
                     
-    ///             Accept connections from one or more SV1 Downstream roles (SV1 Mining Devices).
+    /// Accept connections from one or more SV1 Downstream roles (SV1 Mining Devices).
     /// Before creating new Downstream
     /// If we create Downstream + right after the Downstream sends configure, auth, subscribe
     /// Now we have next_mining_notify, when we create Downsteram, we have to spawn a new task that
@@ -192,38 +193,36 @@ impl Downstream {
     /// the NextMiningNotify.  This loop changes the NMN field to prepare for when it is authorized
     /// If True, loop updates field and sends message to downstream.
     /// is_authorized in v1/protocols
-    pub fn accept_connections(
+    pub async fn accept_connections(
         downstream_addr: SocketAddr,
-        submit_sender: Sender<v1::client_to_server::Submit>,
+        submit_sender: Sender<(v1::client_to_server::Submit, Vec<u8>)>,
         receiver_mining_notify: Receiver<server_to_client::Notify>,
         extranonce2_size: usize,
         mut extended_extranonce: ExtendedExtranonce,
         last_notify: Arc<Mutex<Option<server_to_client::Notify>>>,
         target: Arc<Mutex<Vec<u8>>>,
     ) {
-        task::spawn(async move {
-            let downstream_listener = TcpListener::bind(downstream_addr).await.unwrap();
-            let mut downstream_incoming = downstream_listener.incoming();
-            while let Some(stream) = downstream_incoming.next().await {
-                let stream = stream.expect("Err on SV1 Downstream connection stream");
-                println!(
-                    "\nPROXY SERVER - ACCEPTING FROM DOWNSTREAM: {}\n",
-                    stream.peer_addr().unwrap()
-                );
-                let server = Downstream::new(
-                    stream,
-                    submit_sender.clone(),
-                    receiver_mining_notify.clone(),
-                    extranonce2_size,
-                    extended_extranonce.next_extended(extranonce2_size).unwrap(),
-                    last_notify.clone(),
-                    target.clone(),
-                )
-                .await
-                .unwrap();
-                Arc::new(Mutex::new(server));
-            }
-        });
+        let downstream_listener = TcpListener::bind(downstream_addr).await.unwrap();
+        let mut downstream_incoming = downstream_listener.incoming();
+        while let Some(stream) = downstream_incoming.next().await {
+            let stream = stream.expect("Err on SV1 Downstream connection stream");
+            println!(
+                "\nPROXY SERVER - ACCEPTING FROM DOWNSTREAM: {}\n",
+                stream.peer_addr().unwrap()
+            );
+            let server = Downstream::new(
+                stream,
+                submit_sender.clone(),
+                receiver_mining_notify.clone(),
+                extranonce2_size,
+                extended_extranonce.next_extended(extranonce2_size).unwrap(),
+                last_notify.clone(),
+                target.clone(),
+            )
+            .await
+            .unwrap();
+            Arc::new(Mutex::new(server));
+        }
     }
 
     /// As SV1 messages come in, determines if the message response needs to be translated to SV2
@@ -271,14 +270,9 @@ impl IsServer for Downstream {
         &mut self,
         _request: &client_to_server::Configure,
     ) -> (Option<server_to_client::VersionRollingParams>, Option<bool>) {
-        self.version_rolling_mask = self
-            .version_rolling_mask
-            .clone()
-            .map_or(Some(downstream_sv1::new_version_rolling_mask()), Some);
-        self.version_rolling_min_bit = self
-            .version_rolling_mask
-            .clone()
-            .map_or(Some(downstream_sv1::new_version_rolling_min()), Some);
+        println!("CONFIGURING DOWNSTREAM");
+        self.version_rolling_mask = Some(downstream_sv1::new_version_rolling_mask());
+        self.version_rolling_min_bit = Some(downstream_sv1::new_version_rolling_min());
         (
             Some(server_to_client::VersionRollingParams::new(
                 self.version_rolling_mask.clone().unwrap(),
@@ -286,12 +280,14 @@ impl IsServer for Downstream {
             )),
             Some(false),
         )
+        
     }
 
     /// Handle the response to a `mining.subscribe` message received from the client.
     /// The subscription messages are erroneous and just used to conform the SV1 protocol spec.
     /// Because no one unsubscribed in practice, they just unplug their machine.
     fn handle_subscribe(&self, _request: &client_to_server::Subscribe) -> Vec<(String, String)> {
+        println!("SUBSCRIBING DOWNSTREAM");
         let set_difficulty_sub = (
             "mining.set_difficulty".to_string(),
             downstream_sv1::new_subscription_id(),
@@ -305,6 +301,7 @@ impl IsServer for Downstream {
     }
 
     fn handle_authorize(&self, _request: &client_to_server::Authorize) -> bool {
+        println!("AUTHORIZING DOWNSTREAM");
         true
     }
 
@@ -318,7 +315,10 @@ impl IsServer for Downstream {
         // Can use an unbounded channel.
         // Another reason for a potential panic: The channel would close if the Bridge thread
         // panics.
-        self.submit_sender.try_send(request.clone());
+        if self.first_job_received {
+            let to_send = (request.clone(), self.extranonce1.clone());
+            self.submit_sender.try_send(to_send).unwrap();
+        };
         true
     }
 
@@ -330,7 +330,7 @@ impl IsServer for Downstream {
     }
 
     fn authorize(&mut self, name: &str) {
-        self.authorized_names.push(name.to_string())
+        self.authorized_names.push(name.to_string());
     }
 
     /// Set extranonce1 to extranonce1 if provided. If not create a new one and set it.
@@ -365,18 +365,7 @@ impl IsServer for Downstream {
     }
 
     fn notify(&mut self) -> Result<json_rpc::Message, v1::error::Error> {
-        server_to_client::Notify {
-            job_id: "deadbeef".to_string(),
-            prev_hash: utils::PrevHash(vec![3_u8, 4, 5, 6]),
-            coin_base1: "ffff".try_into()?,
-            coin_base2: "ffff".try_into()?,
-            merkle_branch: vec!["fff".try_into()?],
-            version: utils::HexU32Be(5667),
-            bits: utils::HexU32Be(5678),
-            time: utils::HexU32Be(5609),
-            clean_jobs: true,
-        }
-        .try_into()
+        unreachable!()
     }
 }
 
