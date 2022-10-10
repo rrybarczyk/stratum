@@ -8,7 +8,9 @@ use args::Args;
 use error::{Error, ProxyResult};
 use proxy::next_mining_notify::NextMiningNotify;
 use proxy_config::ProxyConfig;
-use roles_logic_sv2::utils::Mutex;
+use roles_logic_sv2::{mining_sv2::ExtendedExtranonce, utils::Mutex};
+
+const SELF_EXTRNONCE_LEN: usize = 2;
 
 use async_channel::{bounded, Receiver, Sender};
 use async_std::task;
@@ -56,6 +58,9 @@ async fn main() {
     // (Sender<NewExtendedMiningJob<'static>>, Receiver<NewExtendedMiningJob<'static>>)
     let (sender_new_extended_mining_job, recv_new_extended_mining_job) = bounded(10);
 
+    let (sender_extranonce, recv_extranonce) = bounded(1);
+    let target = Arc::new(Mutex::new(vec![0;32]));
+
     // TODO add a channel to send new jobs from Bridge to Downstream
     // Put NextMiningNotify in a mutex
     // NextMiningNotify should have channel to Downstream?
@@ -78,9 +83,13 @@ async fn main() {
         recv_submit_to_sv2,
         sender_new_prev_hash,
         sender_new_extended_mining_job,
+        proxy_config.min_extranonce2_size,
+        sender_extranonce,
+        target.clone(),
     )
     .await
     .unwrap();
+
     // Connects to the SV2 Upstream role
     upstream_sv2::Upstream::connect(
         upstream.clone(),
@@ -92,8 +101,9 @@ async fn main() {
     // Start receiving messages from the SV2 Upstream role
     upstream_sv2::Upstream::parse_incoming(upstream.clone());
     // Start receiving submit from the SV1 Downstream role
-    upstream_sv2::Upstream::on_submit(upstream.clone());
+    upstream_sv2::Upstream::handle_submit(upstream.clone());
     let next_mining_notify = Arc::new(Mutex::new(NextMiningNotify::new()));
+    let last_notify: Arc<Mutex<Option<server_to_client::Notify>>> = Arc::new(Mutex::new(None));
 
     // Instantiates a new `Bridge` and begins handling incoming messages
     proxy::Bridge::new(
@@ -103,8 +113,10 @@ async fn main() {
         recv_new_extended_mining_job,
         next_mining_notify,
         sender_mining_notify_bridge,
+        last_notify.clone(),
     )
     .start();
+
 
     // Format `Downstream` connection address
     let downstream_addr = SocketAddr::new(
@@ -112,16 +124,18 @@ async fn main() {
         proxy_config.downstream_port,
     );
 
+    let extended_extranonce = recv_extranonce.recv().await.unwrap();
+    let extranonce_len = extended_extranonce.get_len();
+    let min_extranonce_size = upstream.safe_lock(|s| s.min_extranonce_size).unwrap() as usize;
+
     // Accept connections from one or more SV1 Downstream roles (SV1 Mining Devices)
     downstream_sv1::Downstream::accept_connections(
         downstream_addr,
         sender_submit_from_sv1,
         recv_mining_notify_downstream,
-    );
-
-    // If this loop is not here, the proxy does not stay live long enough for a Downstream to
-    // connect
-    loop {
-        task::sleep(Duration::from_secs(1)).await;
-    }
+        extranonce_len - min_extranonce_size - (SELF_EXTRNONCE_LEN -1 ),
+        extended_extranonce,
+        last_notify,
+        target,
+    ).await;
 }

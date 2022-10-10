@@ -270,6 +270,13 @@ impl Extranonce {
     }
 
     /// this function converts a Extranonce type to b032 type
+    pub fn from_vec_with_len(mut extranonce: alloc::vec::Vec<u8>, len: usize) -> Self {
+        extranonce.resize(len,0);
+        Self {
+            extranonce
+        }
+    }
+
     pub fn into_b032(self) -> B032<'static> {
         self.into()
     }
@@ -378,6 +385,10 @@ impl ExtendedExtranonce {
             range_2,
             extranonce_len,
         }
+    }
+
+    pub fn get_len(&self) -> usize {
+        self.extranonce_len
     }
 
     // A Extranonce type (in big andian) can be converted into a Extended extranonce type (in big
