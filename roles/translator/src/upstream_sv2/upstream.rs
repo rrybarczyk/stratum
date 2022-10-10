@@ -113,6 +113,7 @@ impl Upstream {
         // Wait for the SV2 Upstream to respond with either a `SetupConnectionSuccess` or a
         // `SetupConnectionError` inside a SV2 binary message frame
         let mut incoming: StdFrame = connection.receiver.recv().await.unwrap().try_into()?;
+        println!("\nUP RECV: {:?}", &incoming);
         // Gets the binary frame message type from the message header
         let message_type = incoming.get_header().unwrap().msg_type();
         // Gets the message payload
@@ -131,9 +132,9 @@ impl Upstream {
         let user_identity = "ABC".to_string().try_into()?;
         let min_extranonce_size = self_.safe_lock(|s| s.min_extranonce_size).unwrap();
         let open_channel = Mining::OpenExtendedMiningChannel(OpenExtendedMiningChannel {
-            request_id: 0.into(),               // TODO
-            user_identity,                      // TODO
-            nominal_hash_rate: 10_000_000_000.0,             // TODO
+            request_id: 0.into(),                // TODO
+            user_identity,                       // TODO
+            nominal_hash_rate: 10_000_000_000.0, // TODO
             max_target: u256_from_int(u64::MAX), // TODO
             min_extranonce_size,
         });
@@ -154,6 +155,7 @@ impl Upstream {
                 let mut incoming: StdFrame = incoming
                     .try_into()
                     .expect("Err converting received frame into `StdFrame`");
+                println!("\nUP RECV: {:?}", &incoming);
                 // On message receive, get the message type from the message header and get the
                 // message payload
                 let message_type = incoming
@@ -181,7 +183,6 @@ impl Upstream {
                 match next_message_to_send {
                     // No translation required, simply respond to SV2 pool w a SV2 message
                     Ok(SendTo::Respond(message_for_upstream)) => {
-
                         let message = Message::Mining(message_for_upstream);
                         let frame: StdFrame = message
                             .try_into()
@@ -236,10 +237,11 @@ impl Upstream {
                                 let sender =
                                     self_.safe_lock(|s| s.extranonce_sender.clone()).unwrap();
                                 sender.send(extended).await.unwrap();
-                                let t =
-                                    self_.safe_lock(|s| s.target.clone()).unwrap();
-                                t.safe_lock(|t| {*t = target;}).unwrap();
-
+                                let t = self_.safe_lock(|s| s.target.clone()).unwrap();
+                                t.safe_lock(|t| {
+                                    *t = target;
+                                })
+                                .unwrap();
                             }
                             Mining::NewExtendedMiningJob(m) => {
                                 println!("NEW MINING JOB");
@@ -247,7 +249,11 @@ impl Upstream {
                                 let sender = self_
                                     .safe_lock(|s| s.new_extended_mining_job_sender.clone())
                                     .unwrap();
-                                self_.safe_lock(|s| {let _ = s.job_id.insert(job_id);}).unwrap();
+                                self_
+                                    .safe_lock(|s| {
+                                        let _ = s.job_id.insert(job_id);
+                                    })
+                                    .unwrap();
                                 sender.send(m).await.unwrap();
                             }
                             Mining::SetNewPrevHash(m) => {
@@ -280,14 +286,14 @@ impl Upstream {
                     .safe_lock(|s| s.submit_from_dowstream.clone())
                     .unwrap();
                 let mut sv2_submit: SubmitSharesExtended = receiver.recv().await.unwrap();
-                sv2_submit.channel_id = self_.safe_lock(|s|s.channel_id.unwrap()).unwrap();
-                sv2_submit.job_id = self_.safe_lock(|s|s.job_id.unwrap()).unwrap();
-                sv2_submit.channel_id = self_
-                    .safe_lock(|s| {
-                        s.channel_id
-                            .expect("Expected `Upstream`'s `channel_id` to be `Some`, got `None`")
-                    })
-                    .unwrap();
+                // sv2_submit.channel_id = self_.safe_lock(|s| s.channel_id.unwrap()).unwrap();
+                // sv2_submit.job_id = self_.safe_lock(|s| s.job_id.unwrap()).unwrap();
+                // sv2_submit.channel_id = self_
+                //     .safe_lock(|s| {
+                //         s.channel_id
+                //             .expect("Expected `Upstream`'s `channel_id` to be `Some`, got `None`")
+                //     })
+                //     .unwrap();
 
                 println!("SUBMITTING SHARE {:#?}", sv2_submit);
                 let message = Message::Mining(
@@ -515,7 +521,7 @@ impl ParseUpstreamMiningMessages<Downstream, NullDownstreamMiningSelector, NoRou
 
     fn handle_submit_shares_error(
         &mut self,
-        _: roles_logic_sv2::mining_sv2::SubmitSharesError,
+        m: roles_logic_sv2::mining_sv2::SubmitSharesError,
     ) -> Result<roles_logic_sv2::handlers::mining::SendTo<Downstream>, roles_logic_sv2::errors::Error>
     {
         // TODO
@@ -530,7 +536,7 @@ impl ParseUpstreamMiningMessages<Downstream, NullDownstreamMiningSelector, NoRou
         //     error_code: m.error_code.clone().into_static(),
         // });
         // Ok(SendTo::Respond(message))
-        println!("SUBMIT SHARE ERROR");
+        println!("\nSUBMIT SHARE ERROR: {:?}", &m);
         Ok(SendTo::None(None))
     }
 
@@ -622,7 +628,9 @@ impl ParseUpstreamMiningMessages<Downstream, NullDownstreamMiningSelector, NoRou
             maximum_target: m.maximum_target.into_static(),
         };
         println!("SET TARGET TO: {:?}", m.maximum_target);
-        self.target.safe_lock(|t| {*t = m.maximum_target.to_vec()}).unwrap();
+        self.target
+            .safe_lock(|t| *t = m.maximum_target.to_vec())
+            .unwrap();
         Ok(SendTo::None(None))
     }
 

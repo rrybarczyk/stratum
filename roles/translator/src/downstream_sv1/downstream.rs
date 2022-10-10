@@ -6,6 +6,7 @@ use async_std::{
     prelude::*,
     task,
 };
+use bigint;
 use roles_logic_sv2::{
     common_properties::{IsDownstream, IsMiningDownstream},
     mining_sv2::{ExtendedExtranonce, Extranonce},
@@ -17,7 +18,6 @@ use v1::{
     utils::{self, HexBytes, HexU32Be},
     IsServer,
 };
-use bigint;
 
 /// Handles the sending and receiving of messages to and from an SV2 Upstream role (most typically
 /// a SV2 Pool server).
@@ -85,6 +85,7 @@ impl Downstream {
                 while let Some(incoming) = messages.next().await {
                     let incoming =
                         incoming.expect("Err reading next incoming message from SV1 Downstream");
+                    println!("\nDOWN RECV: {}", &incoming);
                     let incoming: Result<json_rpc::Message, _> = serde_json::from_str(&incoming);
                     let incoming = incoming.expect("Err serializing incoming message from SV1 Downstream into JSON from `String`");
                     //println!("TD RECV MSG FROM DOWNSTREAM: {:?}", &incoming);
@@ -105,13 +106,13 @@ impl Downstream {
                     serde_json::to_string(&to_send)
                         .expect("Err deserializing JSON message for SV1 Downstream into `String`")
                 );
+                println!("\nDOWN SEND: {}", &to_send);
                 (&*socket_writer_clone)
                     .write_all(to_send.as_bytes())
                     .await
                     .unwrap();
             }
         });
-
 
         let downstream_clone = downstream.clone();
         // RR TODO
@@ -124,18 +125,20 @@ impl Downstream {
                     .unwrap();
                 let is_a: bool = true; // TODO why this is not get authorized ?
 
-                if is_a && ! first_sent {
+                if is_a && !first_sent {
                     async_std::task::sleep(std::time::Duration::from_secs(5)).await;
-                    let target_2: bigint::U256 = target.safe_lock(|t|t.clone()).unwrap()[..].try_into().unwrap();
+                    let target_2: bigint::U256 = target.safe_lock(|t| t.clone()).unwrap()[..]
+                        .try_into()
+                        .unwrap();
                     let messsage = Self::get_set_difficulty(target_2);
                     Downstream::send_message_downstream(downstream_clone.clone(), messsage).await;
 
-                    let sv1_mining_notify_msg = last_notify.safe_lock(|s| s.clone()).unwrap().unwrap();
+                    let sv1_mining_notify_msg =
+                        last_notify.safe_lock(|s| s.clone()).unwrap().unwrap();
                     let messsage: json_rpc::Message = sv1_mining_notify_msg.try_into().unwrap();
                     Downstream::send_message_downstream(downstream_clone.clone(), messsage).await;
                     first_sent = true;
-                }
-                else if is_a {
+                } else if is_a {
                     let sv1_mining_notify_msg =
                         mining_notify_receiver.clone().recv().await.unwrap();
                     let messsage: json_rpc::Message = sv1_mining_notify_msg.try_into().unwrap();
@@ -149,7 +152,10 @@ impl Downstream {
             let target = downstream_clone.safe_lock(|t| t.target.clone()).unwrap();
             let mut last_target = target.safe_lock(|t| t.clone()).unwrap();
             loop {
-                let target = downstream_clone.clone().safe_lock(|t| t.target.clone()).unwrap();
+                let target = downstream_clone
+                    .clone()
+                    .safe_lock(|t| t.target.clone())
+                    .unwrap();
                 let target = target.safe_lock(|t| t.clone()).unwrap();
                 if target != last_target {
                     last_target = target;
@@ -165,19 +171,21 @@ impl Downstream {
 
     // TODO need to be fixed
     fn get_set_difficulty(target_2: bigint::U256) -> json_rpc::Message {
-        let target_1 = bigint::U256::from_dec_str("26959535291011309493156476344723991336010898738574164086137773096960").unwrap();
+        let target_1 = bigint::U256::from_dec_str(
+            "26959535291011309493156476344723991336010898738574164086137773096960",
+        )
+        .unwrap();
         let diff = target_1.overflowing_div(target_2);
         let diff = diff.0.to_string();
         let diff: f64 = diff.parse().unwrap();
         println!("SET DIFFICULTY TO: {}", diff);
         // 1502588028741811700000000000000000000000000000000
-        let set_target = v1::methods::server_to_client::SetDifficulty {
-            value: diff,
-        };
+        // let set_target = v1::methods::server_to_client::SetDifficulty { value: diff };
+        let set_target = v1::methods::server_to_client::SetDifficulty { value: 1.0 };
         let messsage: json_rpc::Message = set_target.try_into().unwrap();
         messsage
-    }               
-                    
+    }
+
     ///             Accept connections from one or more SV1 Downstream roles (SV1 Mining Devices).
     /// Before creating new Downstream
     /// If we create Downstream + right after the Downstream sends configure, auth, subscribe
@@ -249,9 +257,7 @@ impl Downstream {
             }
             Err(e) => {
                 // Err(Error::V1Error(e))
-                panic!(
-                    "`{:?}`",
-                    e);
+                panic!("`{:?}`", e);
             }
         }
     }
