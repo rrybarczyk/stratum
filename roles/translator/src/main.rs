@@ -146,4 +146,7 @@ async fn main() {
         target,
     )
     .await;
+    loop {
+        async_std::task::sleep(std::time::Duration::from_secs(1)).await;
+    }
 }
