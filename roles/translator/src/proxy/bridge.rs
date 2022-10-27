@@ -4,7 +4,7 @@ use roles_logic_sv2::{
     mining_sv2::{ExtendedExtranonce, NewExtendedMiningJob, SetNewPrevHash, SubmitSharesExtended},
     utils::{Id, Mutex},
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use v1::{client_to_server::Submit, server_to_client};
 
 use super::next_mining_notify::NextMiningNotify;
@@ -48,6 +48,15 @@ pub struct Bridge {
     /// a Downstream role connects and receives the first notify values, this member field is no
     /// longer used.
     last_notify: Arc<Mutex<Option<server_to_client::Notify>>>,
+    /// Mapping of job id to associated `NewExtendedMiningJob`. When a `NewExtendedMiningJob` is
+    /// received, it is placed in this mapping with its `job_id` as the key. If a
+    /// `NewExtendedMiningJob` is received with a `future_job=true`, this job is intended for a
+    /// future `SetNewPrevHash` message and the `NewExtendedMiningJob` is inserted into the
+    /// mapping. When a `SetNewPrevHash` message is received who's `job_id` exists in the mapping,
+    /// a SV1 `mining.notify` is created from the SV2 `SetNewPrevHash` and `NewExtendedMiningJob`
+    /// messages, and the map is flushed. If there is no matching `job_id`, the `SetNewPrevHash` is
+    /// simply stored.
+    job_mapper: HashMap<u32, NewExtendedMiningJob<'static>>,
 }
 
 impl Bridge {
@@ -70,6 +79,7 @@ impl Bridge {
             sender_mining_notify,
             channel_sequence_id: Id::new(),
             last_notify,
+            job_mapper: HashMap::new(),
         }
     }
 
@@ -137,14 +147,33 @@ impl Bridge {
                     self_.safe_lock(|r| r.set_new_prev_hash.clone()).unwrap();
                 let sv2_set_new_prev_hash: SetNewPrevHash =
                     set_new_prev_hash_recv.clone().recv().await.unwrap();
-                // Store the prevhash value in the `NextMiningNotify` struct
+
                 self_
                     .safe_lock(|s| {
-                        s.next_mining_notify
-                            .safe_lock(|nmn| {
-                                nmn.set_new_prev_hash_msg(sv2_set_new_prev_hash);
-                            })
-                            .unwrap();
+                        match s.job_mapper.get(&sv2_set_new_prev_hash.job_id) {
+                            Some(nemj) => {
+                                // Store the prevhash value in the `NextMiningNotify` struct
+                                s.next_mining_notify
+                                    .safe_lock(|nmn| {
+                                        nmn.set_new_prev_hash_msg(sv2_set_new_prev_hash);
+                                    })
+                                    .unwrap();
+                                // Store the job value in the `NextMiningNotify` struct
+                                s.next_mining_notify
+                                    .safe_lock(|nmn| {
+                                        nmn.new_extended_mining_job_msg(nemj.clone());
+                                    })
+                                    .unwrap();
+                            }
+                            None => {
+                                // Store the prevhash value in the `NextMiningNotify` struct
+                                s.next_mining_notify
+                                    .safe_lock(|nmn| {
+                                        nmn.set_new_prev_hash_msg(sv2_set_new_prev_hash);
+                                    })
+                                    .unwrap();
+                            }
+                        };
                     })
                     .unwrap();
 
@@ -161,13 +190,11 @@ impl Bridge {
                             .unwrap()
                     })
                     .unwrap();
-                let sv1_notify_msg =
-                    sv1_notify_msg.expect("Error creating `mining.Notify` from `SetNewPrevHash`");
 
                 // If a `mining.notify` was able to be created (aka if `SetNewPrevHash` AND
                 // `NewExtendedMiningJob` messages have both been received), send the
                 // `mining.notify` data to the `Downstream`
-                if let Some(msg) = Some(sv1_notify_msg) {
+                if let Some(msg) = sv1_notify_msg {
                     // `last_notify` logic here is only relevant for SV2 `SetNewPrevHash` and
                     // `NewExtendedMiningJob` messages received **before** a Downstream role
                     // connects
@@ -200,6 +227,20 @@ impl Bridge {
                         .recv()
                         .await
                         .unwrap();
+
+                // If `future_job` is true, insert the job id and NewExtendedMiningJob into mapping
+                // to be used on the next SetNewPrevHash message receive
+                if sv2_new_extended_mining_job.future_job {
+                    self_
+                        .safe_lock(|s| {
+                            s.job_mapper.insert(
+                                sv2_new_extended_mining_job.clone().job_id,
+                                sv2_new_extended_mining_job.clone(),
+                            );
+                        })
+                        .unwrap();
+                }
+
                 // Store the new extended mining job values in the `NextMiningNotify` struct
                 self_
                     .safe_lock(|s| {

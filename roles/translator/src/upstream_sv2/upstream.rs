@@ -649,12 +649,12 @@ impl ParseUpstreamMiningMessages<Downstream, NullDownstreamMiningSelector, NoRou
         m: roles_logic_sv2::mining_sv2::NewExtendedMiningJob,
     ) -> Result<roles_logic_sv2::handlers::mining::SendTo<Downstream>, roles_logic_sv2::errors::Error>
     {
-        if !m.future_job {
-            todo!()
-        }
-        if !m.version_rolling_allowed {
-            todo!()
-        }
+        // if !m.future_job {
+        //     todo!()
+        // }
+        // if !m.version_rolling_allowed {
+        //     todo!()
+        // }
         let job = Job_ {
             id: m.job_id,
             coinbase_tx_prefix: m.coinbase_tx_prefix.to_vec(),
