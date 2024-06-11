@@ -1,6 +1,5 @@
-use super::super::downstream::DownstreamMiningNode as Downstream;
-
 use super::super::{
+    downstream::DownstreamMiningNode as Downstream,
     status,
     upstream_sv2::{EitherFrame, Message, StdFrame},
     ChannelSendError, JdcError, JdcResult, PoolChangerTrigger,
@@ -27,11 +26,15 @@ use roles_logic_sv2::{
     utils::{Id, Mutex},
     Error as RolesLogicError,
 };
-use std::{collections::HashMap, net::SocketAddr, sync::Arc, thread::sleep, time::Duration};
+use std::{
+    collections::{HashMap, VecDeque},
+    net::SocketAddr,
+    sync::Arc,
+    thread::sleep,
+    time::Duration,
+};
 use tokio::{net::TcpStream, task, task::AbortHandle};
 use tracing::{error, info, warn};
-
-use std::collections::VecDeque;
 
 #[derive(Debug)]
 struct CircularBuffer {
