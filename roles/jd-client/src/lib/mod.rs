@@ -1,10 +1,13 @@
 pub mod downstream;
-pub mod error;
+pub(crate) mod error;
 pub mod jdc_config;
 pub mod job_declarator;
 pub mod status;
 pub mod template_receiver;
 pub mod upstream_sv2;
+
+pub(crate) use error::{ChannelSendError, Error, Result};
+pub use error::{ChannelSendError as JdcChannelSendError, Error as JdcError, Result as JdcResult};
 
 use std::{sync::atomic::AtomicBool, time::Duration};
 
