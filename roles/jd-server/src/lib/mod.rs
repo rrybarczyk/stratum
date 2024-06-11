@@ -1,13 +1,17 @@
-pub mod error;
+pub(crate) mod error;
 pub mod jds_config;
 pub mod job_declarator;
 pub mod mempool;
 pub mod status;
 
+pub(crate) use error::{Error, Result};
+pub use error::{Error as JdsError, Result as JdsResult};
+
 use codec_sv2::{StandardEitherFrame, StandardSv2Frame};
 use key_utils::{Secp256k1PublicKey, Secp256k1SecretKey};
 use roles_logic_sv2::{
-    errors::Error, parsers::PoolMessages as JdsMessages, utils::CoinbaseOutput as CoinbaseOutput_,
+    errors::Error as RolesLogicSv2Error, parsers::PoolMessages as JdsMessages,
+    utils::CoinbaseOutput as CoinbaseOutput_,
 };
 use serde::Deserialize;
 use std::{convert::TryFrom, time::Duration};
@@ -51,7 +55,7 @@ pub struct Configuration {
     pub mempool_update_interval: Duration,
 }
 
-fn duration_from_toml<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+fn duration_from_toml<'de, D>(deserializer: D) -> std::result::Result<Duration, D::Error>
 where
     D: serde::Deserializer<'de>,
 {

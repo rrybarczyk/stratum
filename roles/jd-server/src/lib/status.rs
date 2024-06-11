@@ -1,6 +1,6 @@
 use roles_logic_sv2::parsers::Mining;
 
-use super::error::JdsError;
+use super::Error;
 
 /// Each sending side of the status channel
 /// should be wrapped with this enum to allow
@@ -24,8 +24,8 @@ impl Clone for Sender {
 
 #[derive(Debug)]
 pub enum State {
-    DownstreamShutdown(JdsError),
-    TemplateProviderShutdown(JdsError),
+    DownstreamShutdown(Error),
+    TemplateProviderShutdown(Error),
     DownstreamInstanceDropped(u32),
     Healthy(String),
 }
@@ -41,26 +41,26 @@ pub struct Status {
 /// the main status loop can decide what should happen
 async fn send_status(
     sender: &Sender,
-    e: JdsError,
+    e: Error,
     outcome: error_handling::ErrorBranch,
 ) -> error_handling::ErrorBranch {
     match sender {
         Sender::Downstream(tx) => match e {
-            JdsError::Sv2ProtocolError((id, Mining::OpenMiningChannelError(_))) => {
+            Error::Sv2ProtocolError((id, Mining::OpenMiningChannelError(_))) => {
                 tx.send(Status {
                     state: State::DownstreamInstanceDropped(id),
                 })
                 .await
                 .unwrap_or(());
             }
-            JdsError::ChannelRecv(_) => {
+            Error::ChannelRecv(_) => {
                 tx.send(Status {
                     state: State::DownstreamShutdown(e),
                 })
                 .await
                 .unwrap_or(());
             }
-            JdsError::MempoolError(_) => {
+            Error::MempoolError(_) => {
                 tx.send(Status {
                     state: State::TemplateProviderShutdown(e),
                 })
@@ -95,39 +95,33 @@ async fn send_status(
 }
 
 // this is called by `error_handling::handle_result!`
-pub async fn handle_error(sender: &Sender, e: JdsError) -> error_handling::ErrorBranch {
+pub async fn handle_error(sender: &Sender, e: Error) -> error_handling::ErrorBranch {
     tracing::debug!("Error: {:?}", &e);
     match e {
-        JdsError::ConfigError(_) => {
-            send_status(sender, e, error_handling::ErrorBranch::Break).await
-        }
-        JdsError::Io(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
-        JdsError::ChannelSend(_) => {
+        Error::ConfigError(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::Io(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::ChannelSend(_) => {
             //This should be a continue because if we fail to send to 1 downstream we should continue
             //processing the other downstreams in the loop we are in. Otherwise if a downstream fails
             //to send to then subsequent downstreams in the map won't get send called on them
             send_status(sender, e, error_handling::ErrorBranch::Continue).await
         }
-        JdsError::ChannelRecv(_) => {
+        Error::ChannelRecv(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::BinarySv2(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::Codec(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::Noise(_) => send_status(sender, e, error_handling::ErrorBranch::Continue).await,
+        Error::RolesLogic(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::Custom(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::Framing(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::PoisonLock(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::Sv2ProtocolError(_) => {
             send_status(sender, e, error_handling::ErrorBranch::Break).await
         }
-        JdsError::BinarySv2(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
-        JdsError::Codec(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
-        JdsError::Noise(_) => send_status(sender, e, error_handling::ErrorBranch::Continue).await,
-        JdsError::RolesLogic(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
-        JdsError::Custom(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
-        JdsError::Framing(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
-        JdsError::PoisonLock(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
-        JdsError::Sv2ProtocolError(_) => {
-            send_status(sender, e, error_handling::ErrorBranch::Break).await
-        }
-        JdsError::MempoolError(_) => {
-            send_status(sender, e, error_handling::ErrorBranch::Break).await
-        }
-        JdsError::ImpossibleToReconstructBlock(_) => {
+        Error::MempoolError(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::ImpossibleToReconstructBlock(_) => {
             send_status(sender, e, error_handling::ErrorBranch::Continue).await
         }
-        JdsError::NoLastDeclaredJob => {
+        Error::NoLastDeclaredJob => {
             send_status(sender, e, error_handling::ErrorBranch::Continue).await
         }
     }
