@@ -1,5 +1,6 @@
+use crate::{Error, Result};
 use key_utils::{Secp256k1PublicKey, Secp256k1SecretKey};
-use roles_logic_sv2::{errors::Error, utils::CoinbaseOutput as CoinbaseOutput_};
+use roles_logic_sv2::utils::CoinbaseOutput as CoinbaseOutput_;
 use serde::Deserialize;
 use std::time::Duration;
 use stratum_common::bitcoin::TxOut;
@@ -11,21 +12,23 @@ pub struct CoinbaseOutput {
 }
 
 impl TryFrom<&CoinbaseOutput> for CoinbaseOutput_ {
-    type Error = Error;
+    type Error<'a> = Error<'a>;
 
-    fn try_from(pool_output: &CoinbaseOutput) -> Result<Self, Self::Error> {
+    fn try_from(pool_output: &CoinbaseOutput) -> Result<Self> {
         match pool_output.output_script_type.as_str() {
             "P2PK" | "P2PKH" | "P2WPKH" | "P2SH" | "P2WSH" | "P2TR" => Ok(CoinbaseOutput_ {
                 output_script_type: pool_output.clone().output_script_type,
                 output_script_value: pool_output.clone().output_script_value,
             }),
-            _ => Err(Error::UnknownOutputScriptType),
+            e => Err(Error::RolesSv2Logic(
+                roles_logic_sv2::Error::UnknownOutputScriptType,
+            )),
         }
     }
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct JdcConfig {
+pub struct Config {
     pub downstream_address: String,
     pub downstream_port: u16,
     pub max_supported_version: u16,
@@ -53,7 +56,7 @@ pub struct Upstream {
     pub pool_signature: String, // string be included in coinbase tx input scriptsig
 }
 
-fn duration_from_toml<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+fn duration_from_toml<'de, D>(deserializer: D) -> std::result::Result<Duration, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -82,7 +85,7 @@ where
     }
 }
 
-pub fn get_coinbase_output(config: &JdcConfig) -> Result<Vec<TxOut>, Error> {
+pub fn get_coinbase_output(config: &Config) -> Result<Vec<TxOut>> {
     let mut result = Vec::new();
     for coinbase_output_pool in &config.coinbase_outputs {
         let coinbase_output: CoinbaseOutput_ = coinbase_output_pool.try_into()?;
@@ -93,7 +96,9 @@ pub fn get_coinbase_output(config: &JdcConfig) -> Result<Vec<TxOut>, Error> {
         });
     }
     match result.is_empty() {
-        true => Err(Error::EmptyCoinbaseOutputs),
+        true => Err(Error::RolesSv2Logic(
+            roles_logic_sv2::Error::EmptyCoinbaseOutputs,
+        )),
         _ => Ok(result),
     }
 }
