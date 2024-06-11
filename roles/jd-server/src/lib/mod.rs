@@ -12,21 +12,13 @@ pub use error::{Error as JdsError, Result as JdsResult};
 
 use codec_sv2::{StandardEitherFrame, StandardSv2Frame};
 use key_utils::{Secp256k1PublicKey, Secp256k1SecretKey};
-use roles_logic_sv2::{
-    parsers::PoolMessages as JdsMessages,
-};
+use roles_logic_sv2::parsers::PoolMessages as JdsMessages;
 use serde::Deserialize;
-use std::{time::Duration};
+use std::time::Duration;
 
 pub type Message = JdsMessages<'static>;
 pub type StdFrame = StandardSv2Frame<Message>;
 pub type EitherFrame = StandardEitherFrame<Message>;
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct CoinbaseOutput {
-    output_script_type: String,
-    output_script_value: String,
-}
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Configuration {
@@ -34,7 +26,7 @@ pub struct Configuration {
     pub authority_public_key: Secp256k1PublicKey,
     pub authority_secret_key: Secp256k1SecretKey,
     pub cert_validity_sec: u64,
-    pub coinbase_outputs: Vec<CoinbaseOutput>,
+    pub coinbase_outputs: Vec<config::CoinbaseOutput>,
     pub core_rpc_url: String,
     pub core_rpc_port: u16,
     pub core_rpc_user: String,
