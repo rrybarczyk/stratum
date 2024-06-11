@@ -12,8 +12,8 @@ struct Args {
 #[allow(clippy::result_large_err)]
 pub fn process_cli_args<'a>() -> Result<'a, Config> {
     let args = Args::parse();
-    let config = config_ext::Config::builder()
-        .add_source(config_ext::File::with_name(&args.config_path))
+    let config = ext_config::Config::builder()
+        .add_source(ext_config::File::with_name(&args.config_path))
         .build()
         .unwrap_or_else(|e| {
             tracing::error!("{}", e);

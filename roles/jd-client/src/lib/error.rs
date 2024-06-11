@@ -28,7 +28,7 @@ pub enum ChannelSendError<'a> {
 #[derive(Debug)]
 pub enum Error<'a> {
     VecToSlice32(Vec<u8>),
-    ConfigError(config_ext::ConfigError),
+    ConfigError(ext_config::ConfigError),
     /// Errors from `binary_sv2` crate.
     BinarySv2(binary_sv2::Error),
     /// Errors on bad noise handshake.
@@ -79,8 +79,8 @@ impl<'a> fmt::Display for Error<'a> {
     }
 }
 
-impl<'a> From<config_ext::ConfigError> for Error<'a> {
-    fn from(e: config_ext::ConfigError) -> Error<'a> {
+impl<'a> From<ext_config::ConfigError> for Error<'a> {
+    fn from(e: ext_config::ConfigError) -> Error<'a> {
         Error::ConfigError(e)
     }
 }
