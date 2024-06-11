@@ -3,6 +3,9 @@ pub mod downstream_mining;
 pub mod error;
 pub mod upstream_mining;
 
+pub(crate) use config::Config;
+pub use config::Config as ProxyConfig;
+
 use once_cell::sync::OnceCell;
 use roles_logic_sv2::{
     routing_logic::{CommonRoutingLogic, MiningProxyRoutingLogic, MiningRoutingLogic},
