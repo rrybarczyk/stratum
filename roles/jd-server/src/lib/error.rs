@@ -19,7 +19,8 @@ pub enum Error {
     BinarySv2(binary_sv2::Error),
     Codec(codec_sv2::Error),
     Noise(noise_sv2::Error),
-    RolesLogic(roles_logic_sv2::Error),
+    /// Errors from `roles_logic_sv2` crate.
+    RolesSv2Logic(roles_logic_sv2::errors::Error),
     Framing(codec_sv2::framing_sv2::Error),
     PoisonLock(String),
     Custom(String),
@@ -41,7 +42,7 @@ impl std::fmt::Display for Error {
             Codec(ref e) => write!(f, "Codec SV2 error: `{:?}", e),
             Framing(ref e) => write!(f, "Framing SV2 error: `{:?}`", e),
             Noise(ref e) => write!(f, "Noise SV2 error: `{:?}", e),
-            RolesLogic(ref e) => write!(f, "Roles Logic SV2 error: `{:?}`", e),
+            RolesSv2Logic(ref e) => write!(f, "Roles SV2 Logic Error: `{:?}`", e),
             PoisonLock(ref e) => write!(f, "Poison lock: {:?}", e),
             Custom(ref e) => write!(f, "Custom SV2 error: `{:?}`", e),
             Sv2ProtocolError(ref e) => {
@@ -92,9 +93,9 @@ impl From<noise_sv2::Error> for Error {
     }
 }
 
-impl From<roles_logic_sv2::Error> for Error {
-    fn from(e: roles_logic_sv2::Error) -> Error {
-        Error::RolesLogic(e)
+impl From<roles_logic_sv2::errors::Error> for Error {
+    fn from(e: roles_logic_sv2::errors::Error) -> Self {
+        Error::RolesSv2Logic(e)
     }
 }
 

@@ -110,7 +110,7 @@ pub async fn handle_error(sender: &Sender, e: Error) -> error_handling::ErrorBra
         Error::BinarySv2(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
         Error::Codec(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
         Error::Noise(_) => send_status(sender, e, error_handling::ErrorBranch::Continue).await,
-        Error::RolesLogic(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::RolesSv2Logic(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
         Error::Custom(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
         Error::Framing(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
         Error::PoisonLock(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
