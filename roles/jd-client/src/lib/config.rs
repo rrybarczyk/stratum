@@ -11,16 +11,16 @@ pub struct CoinbaseOutput {
     output_script_value: String,
 }
 
-impl TryFrom<&CoinbaseOutput> for CoinbaseOutput_ {
-    type Error<'a> = Error<'a>;
+impl<'a> TryFrom<&'a CoinbaseOutput> for CoinbaseOutput_ {
+    type Error = Error<'a>;
 
-    fn try_from(pool_output: &CoinbaseOutput) -> Result<Self> {
+    fn try_from(pool_output: &'a CoinbaseOutput) -> Result<Self> {
         match pool_output.output_script_type.as_str() {
             "P2PK" | "P2PKH" | "P2WPKH" | "P2SH" | "P2WSH" | "P2TR" => Ok(CoinbaseOutput_ {
-                output_script_type: pool_output.clone().output_script_type,
-                output_script_value: pool_output.clone().output_script_value,
+                output_script_type: pool_output.output_script_type.clone(),
+                output_script_value: pool_output.output_script_value.clone(),
             }),
-            e => Err(Error::RolesSv2Logic(
+            _ => Err(Error::RolesSv2Logic(
                 roles_logic_sv2::Error::UnknownOutputScriptType,
             )),
         }
