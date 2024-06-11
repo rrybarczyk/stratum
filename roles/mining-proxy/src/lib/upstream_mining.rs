@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-use super::{Error, EXTRANONCE_RANGE_1_LENGTH};
+use super::{Error, Result, EXTRANONCE_RANGE_1_LENGTH};
 use roles_logic_sv2::utils::Id;
 
 use super::downstream_mining::{Channel, DownstreamMiningNode, StdFrame as DownstreamFrame};
-use async_channel::{Receiver, SendError, Sender};
+use async_channel::{Receiver, Sender};
 use async_recursion::async_recursion;
 use codec_sv2::{Frame, HandshakeRole, Initiator, StandardEitherFrame, StandardSv2Frame};
 use network_helpers_sv2::noise_connection_tokio::Connection;
@@ -124,12 +124,12 @@ struct UpstreamMiningConnection {
 }
 
 impl UpstreamMiningConnection {
-    async fn send(&mut self, sv2_frame: StdFrame) -> Result<(), SendError<EitherFrame>> {
+    async fn send(&mut self, sv2_frame: StdFrame) -> Result<()> {
         info!("SEND");
         let either_frame = sv2_frame.into();
         match self.sender.send(either_frame).await {
             Ok(_) => Ok(()),
-            Err(e) => Err(e),
+            Err(e) => Err(e.into()),
         }
     }
 }
@@ -236,7 +236,7 @@ impl UpstreamMiningNode {
     fn on_p_hash(
         &mut self,
         mut m: SetNewPrevHash<'static>,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         match self.job_up_to_down_ids.get(&m.job_id) {
             Some(downstreams) => {
                 let mut res = vec![];
@@ -271,7 +271,10 @@ impl UpstreamMiningNode {
     ///     returned and the upstream is marked as not connected.
     /// If the node is not connected it try to connect and send the message and everything is ok
     ///     the upstream is marked as connected and Ok(()) is returned if not an error is returned.
-    pub async fn send(self_mutex: Arc<Mutex<Self>>, sv2_frame: StdFrame) -> Result<(), Error> {
+    pub async fn send(
+        self_mutex: Arc<Mutex<Self>>,
+        sv2_frame: StdFrame,
+    ) -> std::result::Result<(), Error> {
         let (has_sv2_connection, mut connection, address) = self_mutex
             .safe_lock(|self_| {
                 (
@@ -288,7 +291,7 @@ impl UpstreamMiningNode {
                 Ok(_) => Ok(()),
                 Err(e) => {
                     error!(
-                        "Error sending message to upstream node. Trying to reconnect to {}: {}",
+                        "Error sending message to upstream node. Trying to reconnect to {}: {:?}",
                         address, e
                     );
                     Self::connect(self_mutex.clone()).await.unwrap();
@@ -319,7 +322,7 @@ impl UpstreamMiningNode {
                     },
                     Err(e) => {
                         error!(
-                            "Error sending message to upstream node at {} with error {}",
+                            "Error sending message to upstream node at {} with error {:?}",
                             address, e
                         );
                         //Self::connect(self_mutex.clone()).await.unwrap();
@@ -330,7 +333,7 @@ impl UpstreamMiningNode {
         }
     }
 
-    async fn receive(self_mutex: Arc<Mutex<Self>>) -> Result<StdFrame, Error> {
+    async fn receive(self_mutex: Arc<Mutex<Self>>) -> std::result::Result<StdFrame, Error> {
         let mut connection = self_mutex
             .safe_lock(|self_| self_.connection.clone())
             .unwrap();
@@ -350,7 +353,7 @@ impl UpstreamMiningNode {
         }
     }
 
-    async fn connect(self_mutex: Arc<Mutex<Self>>) -> Result<(), Error> {
+    async fn connect(self_mutex: Arc<Mutex<Self>>) -> std::result::Result<(), Error> {
         let has_connection = self_mutex
             .safe_lock(|self_| self_.connection.is_some())
             .unwrap();
@@ -387,7 +390,7 @@ impl UpstreamMiningNode {
     }
 
     #[async_recursion]
-    async fn setup_connection(self_mutex: Arc<Mutex<Self>>) -> Result<(), ()> {
+    async fn setup_connection(self_mutex: Arc<Mutex<Self>>) -> std::result::Result<(), ()> {
         let sv2_connection = self_mutex.safe_lock(|self_| self_.sv2_connection).unwrap();
 
         match sv2_connection {
@@ -510,7 +513,7 @@ impl UpstreamMiningNode {
 
     async fn match_next_message(
         self_mutex: Arc<Mutex<Self>>,
-        to_send: Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error>,
+        to_send: std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error>,
         incoming: StdFrame,
     ) {
         match to_send {
@@ -594,7 +597,7 @@ impl UpstreamMiningNode {
         flags: Option<u32>,
         min_version: u16,
         max_version: u16,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let flags = flags.unwrap_or(0b0000_0000_0000_0000_0000_0000_0000_0110);
         let (frame, downstream_hr) = self_mutex
             .safe_lock(|self_| {
@@ -753,7 +756,7 @@ impl UpstreamMiningNode {
     pub fn handle_std_shr(
         self_: Arc<Mutex<Self>>,
         share_: SubmitSharesStandard,
-    ) -> Result<Mining<'static>, RolesLogicSv2Error> {
+    ) -> std::result::Result<Mining<'static>, RolesLogicSv2Error> {
         if self_.safe_lock(|s| s.channel_kind.is_extended()).unwrap() {
             let share = self_
                 .safe_lock(|s| {
@@ -894,7 +897,7 @@ impl
         &mut self,
         m: OpenStandardMiningChannelSuccess,
         remote: Option<Arc<Mutex<DownstreamMiningNode>>>,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         match &mut self.channel_kind {
             ChannelKind::Group(group) => {
                 let down_is_header_only = remote
@@ -929,7 +932,7 @@ impl
     fn handle_open_extended_mining_channel_success(
         &mut self,
         m: OpenExtendedMiningChannelSuccess,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         let extranonce_prefix: Extranonce = m.extranonce_prefix.clone().into();
         let range_0 = 0..m.extranonce_prefix.clone().to_vec().len();
         let range_1 = range_0.end..(range_0.end + EXTRANONCE_RANGE_1_LENGTH);
@@ -955,35 +958,35 @@ impl
     fn handle_open_mining_channel_error(
         &mut self,
         _m: OpenMiningChannelError,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         todo!("460")
     }
 
     fn handle_update_channel_error(
         &mut self,
         _m: UpdateChannelError,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         todo!("470")
     }
 
     fn handle_close_channel(
         &mut self,
         _m: CloseChannel,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         todo!("480")
     }
 
     fn handle_set_extranonce_prefix(
         &mut self,
         _m: SetExtranoncePrefix,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         todo!("490")
     }
 
     fn handle_submit_shares_success(
         &mut self,
         m: SubmitSharesSuccess,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         match &self
             .downstream_selector
             .downstream_from_channel_id(m.channel_id)
@@ -999,7 +1002,7 @@ impl
     fn handle_submit_shares_error(
         &mut self,
         _m: SubmitSharesError,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         Ok(SendTo::None(None))
     }
 
@@ -1009,7 +1012,7 @@ impl
     fn handle_new_mining_job(
         &mut self,
         _m: NewMiningJob,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         todo!()
         //// One and only one downstream cause the message is not extended
         //match &self
@@ -1032,7 +1035,7 @@ impl
     fn handle_new_extended_mining_job(
         &mut self,
         m: NewExtendedMiningJob,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         debug!("Handling new extended mining job: {:?} {}", m, self.id);
 
         let mut res = vec![];
@@ -1119,7 +1122,7 @@ impl
     fn handle_set_new_prev_hash(
         &mut self,
         m: SetNewPrevHash,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         match &mut self.channel_kind {
             ChannelKind::Group(group) => {
                 group.update_new_prev_hash(&m);
@@ -1154,7 +1157,7 @@ impl
     fn handle_set_custom_mining_job_success(
         &mut self,
         _m: SetCustomMiningJobSuccess,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         info!("SET CUSTOM MINIG JOB SUCCESS");
         Ok(SendTo::None(None))
     }
@@ -1162,21 +1165,21 @@ impl
     fn handle_set_custom_mining_job_error(
         &mut self,
         _m: SetCustomMiningJobError,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         todo!("560")
     }
 
     fn handle_set_target(
         &mut self,
         _m: SetTarget,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         todo!("570")
     }
 
     fn handle_reconnect(
         &mut self,
         _m: Reconnect,
-    ) -> Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
+    ) -> std::result::Result<SendTo<DownstreamMiningNode>, RolesLogicSv2Error> {
         todo!("580")
     }
 
