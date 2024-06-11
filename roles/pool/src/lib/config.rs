@@ -5,7 +5,7 @@ use roles_logic_sv2::{
 };
 use serde::Deserialize;
 use std::convert::{TryFrom, TryInto};
-use stratum_common::bitcoin::{Script, TxOut};
+use stratum_common::bitcoin::TxOut;
 
 pub fn get_coinbase_output(config: &Config) -> Result<Vec<TxOut>> {
     let mut result = Vec::new();
