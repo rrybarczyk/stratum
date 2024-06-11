@@ -1,6 +1,6 @@
 use super::super::{
-    error::{PoolError, PoolResult},
     mining_pool::{EitherFrame, StdFrame},
+    Error, Result,
 };
 use async_channel::{Receiver, Sender};
 use codec_sv2::Frame;
@@ -10,7 +10,7 @@ use roles_logic_sv2::{
         SetupConnectionSuccess,
     },
     common_properties::CommonDownstreamData,
-    errors::Error,
+    errors::Error as RolesLogicSv2Error,
     handlers::common::ParseDownstreamCommonMessages,
     parsers::{CommonMessages, PoolMessages},
     routing_logic::{CommonRoutingLogic, NoRouting},
@@ -38,7 +38,7 @@ impl SetupConnectionHandler {
         receiver: &mut Receiver<EitherFrame>,
         sender: &mut Sender<EitherFrame>,
         address: SocketAddr,
-    ) -> PoolResult<CommonDownstreamData> {
+    ) -> Result<CommonDownstreamData> {
         // read stdFrame from receiver
 
         let mut incoming: StdFrame = match receiver.recv().await {
@@ -55,13 +55,13 @@ impl SetupConnectionHandler {
             }
             Err(e) => {
                 error!("Error receiving message: {:?}", e);
-                return Err(Error::NoDownstreamsConnected.into());
+                return Err(RolesLogicSv2Error::NoDownstreamsConnected.into());
             }
         };
 
         let message_type = incoming
             .get_header()
-            .ok_or_else(|| PoolError::Custom(String::from("No header set")))?
+            .ok_or_else(|| Error::Custom(String::from("No header set")))?
             .msg_type();
         let payload = incoming.payload();
         let response = ParseDownstreamCommonMessages::handle_message_common(
@@ -71,8 +71,8 @@ impl SetupConnectionHandler {
             CommonRoutingLogic::None,
         )?;
 
-        let message = response.into_message().ok_or(PoolError::RolesLogic(
-            roles_logic_sv2::Error::NoDownstreamsConnected,
+        let message = response.into_message().ok_or(Error::RolesLogic(
+            RolesLogicSv2Error::NoDownstreamsConnected,
         ))?;
 
         let sv2_frame: StdFrame = PoolMessages::Common(message.clone()).try_into()?;
@@ -98,8 +98,10 @@ impl ParseDownstreamCommonMessages<NoRouting> for SetupConnectionHandler {
     fn handle_setup_connection(
         &mut self,
         incoming: SetupConnection,
-        _: Option<Result<(CommonDownstreamData, SetupConnectionSuccess), Error>>,
-    ) -> Result<roles_logic_sv2::handlers::common::SendTo, Error> {
+        _: Option<
+            std::result::Result<(CommonDownstreamData, SetupConnectionSuccess), RolesLogicSv2Error>,
+        >,
+    ) -> std::result::Result<roles_logic_sv2::handlers::common::SendTo, RolesLogicSv2Error> {
         use roles_logic_sv2::handlers::common::SendTo;
         let header_only = incoming.requires_standard_job();
         debug!("Handling setup connection: header_only: {}", header_only);

@@ -6,8 +6,10 @@ use std::{
 
 use roles_logic_sv2::parsers::Mining;
 
+pub type Result<T> = core::result::Result<T, Error>;
+
 #[derive(std::fmt::Debug)]
-pub enum PoolError {
+pub enum Error {
     ConfigError(config::ConfigError),
     Io(std::io::Error),
     ChannelSend(Box<dyn std::marker::Send + Debug>),
@@ -23,15 +25,15 @@ pub enum PoolError {
     Sv2ProtocolError((u32, Mining<'static>)),
 }
 
-impl From<config::ConfigError> for PoolError {
-    fn from(e: config::ConfigError) -> PoolError {
-        PoolError::ConfigError(e)
+impl From<config::ConfigError> for Error {
+    fn from(e: config::ConfigError) -> Error {
+        Error::ConfigError(e)
     }
 }
 
-impl std::fmt::Display for PoolError {
+impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use PoolError::*;
+        use Error::*;
         match self {
             ConfigError(e) => write!(f, "Config error: {:?}", e),
             Io(ref e) => write!(f, "I/O error: `{:?}", e),
@@ -52,69 +54,67 @@ impl std::fmt::Display for PoolError {
     }
 }
 
-pub type PoolResult<T> = Result<T, PoolError>;
-
-impl From<std::io::Error> for PoolError {
-    fn from(e: std::io::Error) -> PoolError {
-        PoolError::Io(e)
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Error {
+        Error::Io(e)
     }
 }
 
-impl From<async_channel::RecvError> for PoolError {
-    fn from(e: async_channel::RecvError) -> PoolError {
-        PoolError::ChannelRecv(e)
+impl From<async_channel::RecvError> for Error {
+    fn from(e: async_channel::RecvError) -> Error {
+        Error::ChannelRecv(e)
     }
 }
 
-impl From<binary_sv2::Error> for PoolError {
-    fn from(e: binary_sv2::Error) -> PoolError {
-        PoolError::BinarySv2(e)
+impl From<binary_sv2::Error> for Error {
+    fn from(e: binary_sv2::Error) -> Error {
+        Error::BinarySv2(e)
     }
 }
 
-impl From<codec_sv2::Error> for PoolError {
-    fn from(e: codec_sv2::Error) -> PoolError {
-        PoolError::Codec(e)
+impl From<codec_sv2::Error> for Error {
+    fn from(e: codec_sv2::Error) -> Error {
+        Error::Codec(e)
     }
 }
 
-impl From<noise_sv2::Error> for PoolError {
-    fn from(e: noise_sv2::Error) -> PoolError {
-        PoolError::Noise(e)
+impl From<noise_sv2::Error> for Error {
+    fn from(e: noise_sv2::Error) -> Error {
+        Error::Noise(e)
     }
 }
 
-impl From<roles_logic_sv2::Error> for PoolError {
-    fn from(e: roles_logic_sv2::Error) -> PoolError {
-        PoolError::RolesLogic(e)
+impl From<roles_logic_sv2::Error> for Error {
+    fn from(e: roles_logic_sv2::Error) -> Error {
+        Error::RolesLogic(e)
     }
 }
 
-impl<T: 'static + std::marker::Send + Debug> From<async_channel::SendError<T>> for PoolError {
-    fn from(e: async_channel::SendError<T>) -> PoolError {
-        PoolError::ChannelSend(Box::new(e))
+impl<T: 'static + std::marker::Send + Debug> From<async_channel::SendError<T>> for Error {
+    fn from(e: async_channel::SendError<T>) -> Error {
+        Error::ChannelSend(Box::new(e))
     }
 }
 
-impl From<String> for PoolError {
-    fn from(e: String) -> PoolError {
-        PoolError::Custom(e)
+impl From<String> for Error {
+    fn from(e: String) -> Error {
+        Error::Custom(e)
     }
 }
-impl From<codec_sv2::framing_sv2::Error> for PoolError {
-    fn from(e: codec_sv2::framing_sv2::Error) -> PoolError {
-        PoolError::Framing(e)
-    }
-}
-
-impl<T> From<PoisonError<MutexGuard<'_, T>>> for PoolError {
-    fn from(e: PoisonError<MutexGuard<T>>) -> PoolError {
-        PoolError::PoisonLock(e.to_string())
+impl From<codec_sv2::framing_sv2::Error> for Error {
+    fn from(e: codec_sv2::framing_sv2::Error) -> Error {
+        Error::Framing(e)
     }
 }
 
-impl From<(u32, Mining<'static>)> for PoolError {
+impl<T> From<PoisonError<MutexGuard<'_, T>>> for Error {
+    fn from(e: PoisonError<MutexGuard<T>>) -> Error {
+        Error::PoisonLock(e.to_string())
+    }
+}
+
+impl From<(u32, Mining<'static>)> for Error {
     fn from(e: (u32, Mining<'static>)) -> Self {
-        PoolError::Sv2ProtocolError(e)
+        Error::Sv2ProtocolError(e)
     }
 }

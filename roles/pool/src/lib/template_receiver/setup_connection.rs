@@ -1,12 +1,12 @@
 use super::super::{
-    error::{PoolError, PoolResult},
     mining_pool::{EitherFrame, StdFrame},
+    Error, Result,
 };
 use async_channel::{Receiver, Sender};
 use codec_sv2::Frame;
 use roles_logic_sv2::{
     common_messages_sv2::{Protocol, SetupConnection},
-    errors::Error,
+    errors::Error as RolesLogicSv2Error,
     handlers::common::{ParseUpstreamCommonMessages, SendTo},
     parsers::PoolMessages,
     routing_logic::{CommonRoutingLogic, NoRouting},
@@ -18,7 +18,7 @@ pub struct SetupConnectionHandler {}
 
 impl SetupConnectionHandler {
     #[allow(clippy::result_large_err)]
-    fn get_setup_connection_message(address: SocketAddr) -> PoolResult<SetupConnection<'static>> {
+    fn get_setup_connection_message(address: SocketAddr) -> Result<SetupConnection<'static>> {
         let endpoint_host = address.ip().to_string().into_bytes().try_into()?;
         let vendor = String::new().try_into()?;
         let hardware_version = String::new().try_into()?;
@@ -42,7 +42,7 @@ impl SetupConnectionHandler {
         receiver: &mut Receiver<EitherFrame>,
         sender: &mut Sender<EitherFrame>,
         address: SocketAddr,
-    ) -> PoolResult<()> {
+    ) -> Result<()> {
         let setup_connection = Self::get_setup_connection_message(address)?;
 
         let sv2_frame: StdFrame = PoolMessages::Common(setup_connection.into()).try_into()?;
@@ -53,10 +53,10 @@ impl SetupConnectionHandler {
             .recv()
             .await?
             .try_into()
-            .map_err(|e| PoolError::Codec(codec_sv2::Error::FramingSv2Error(e)))?;
+            .map_err(|e| Error::Codec(codec_sv2::Error::FramingSv2Error(e)))?;
         let message_type = incoming
             .get_header()
-            .ok_or_else(|| PoolError::Custom(String::from("No header set")))?
+            .ok_or_else(|| Error::Custom(String::from("No header set")))?
             .msg_type();
         let payload = incoming.payload();
 
@@ -74,14 +74,14 @@ impl ParseUpstreamCommonMessages<NoRouting> for SetupConnectionHandler {
     fn handle_setup_connection_success(
         &mut self,
         _: roles_logic_sv2::common_messages_sv2::SetupConnectionSuccess,
-    ) -> Result<roles_logic_sv2::handlers::common::SendTo, Error> {
+    ) -> std::result::Result<roles_logic_sv2::handlers::common::SendTo, RolesLogicSv2Error> {
         Ok(SendTo::None(None))
     }
 
     fn handle_setup_connection_error(
         &mut self,
         _: roles_logic_sv2::common_messages_sv2::SetupConnectionError,
-    ) -> Result<roles_logic_sv2::handlers::common::SendTo, Error> {
+    ) -> std::result::Result<roles_logic_sv2::handlers::common::SendTo, RolesLogicSv2Error> {
         //return error result
         todo!()
     }
@@ -89,8 +89,8 @@ impl ParseUpstreamCommonMessages<NoRouting> for SetupConnectionHandler {
     fn handle_channel_endpoint_changed(
         &mut self,
         _: roles_logic_sv2::common_messages_sv2::ChannelEndpointChanged,
-    ) -> Result<roles_logic_sv2::handlers::common::SendTo, Error> {
-        Err(Error::UnexpectedMessage(
+    ) -> std::result::Result<roles_logic_sv2::handlers::common::SendTo, RolesLogicSv2Error> {
+        Err(RolesLogicSv2Error::UnexpectedMessage(
             const_sv2::MESSAGE_TYPE_CHANNEL_ENDPOINT_CHANGED,
         ))
     }

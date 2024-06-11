@@ -1,4 +1,4 @@
-use crate::lib::{error::PoolResult, pool_config::PoolConfig};
+use crate::lib::{pool_config::PoolConfig, Result};
 
 use clap::Parser;
 
@@ -10,7 +10,7 @@ struct Args {
 }
 
 #[allow(clippy::result_large_err)]
-pub fn process_cli_args() -> PoolResult<PoolConfig> {
+pub fn process_cli_args() -> Result<PoolConfig> {
     let args = Args::parse();
     let config = match config::Config::builder()
         .add_source(config::File::with_name(&args.config_path))
