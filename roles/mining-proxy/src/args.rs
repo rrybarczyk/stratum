@@ -19,7 +19,7 @@ pub fn process_cli_args() -> Result<Config> {
             std::process::exit(1);
         });
 
-    let mining_proxy_config = config.try_deserialize::<Config>()?;
+    let proxy_config = config.try_deserialize::<Config>()?;
 
-    Ok(mining_proxy_config)
+    Ok(proxy_config)
 }
