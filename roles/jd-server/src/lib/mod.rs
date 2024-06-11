@@ -20,20 +20,6 @@ pub type Message = JdsMessages<'static>;
 pub type StdFrame = StandardSv2Frame<Message>;
 pub type EitherFrame = StandardEitherFrame<Message>;
 
-impl TryFrom<&CoinbaseOutput> for CoinbaseOutput_ {
-    type Error = Error;
-
-    fn try_from(pool_output: &CoinbaseOutput) -> Result<Self, Self::Error> {
-        match pool_output.output_script_type.as_str() {
-            "P2PK" | "P2PKH" | "P2WPKH" | "P2SH" | "P2WSH" | "P2TR" => Ok(CoinbaseOutput_ {
-                output_script_type: pool_output.clone().output_script_type,
-                output_script_value: pool_output.clone().output_script_value,
-            }),
-            _ => Err(Error::UnknownOutputScriptType),
-        }
-    }
-}
-
 #[derive(Debug, Deserialize, Clone)]
 pub struct CoinbaseOutput {
     output_script_type: String,
