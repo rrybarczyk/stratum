@@ -100,7 +100,7 @@ pub enum ChannelKind {
 pub async fn initialize_r_logic(
     upstreams: &[UpstreamMiningValues],
     group_id: Arc<Mutex<GroupId>>,
-    config: config::ProxyConfig,
+    config: config::Config,
 ) -> RLogic {
     let channel_ids = Arc::new(Mutex::new(Id::new()));
     let mut upstream_mining_nodes = Vec::with_capacity(upstreams.len());

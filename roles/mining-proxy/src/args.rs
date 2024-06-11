@@ -1,4 +1,4 @@
-use crate::lib::{config::ProxyConfig, error::ProxyResult};
+use crate::lib::{config::Config, error::ProxyResult};
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -9,7 +9,7 @@ struct Args {
 }
 
 #[allow(clippy::result_large_err)]
-pub fn process_cli_args() -> ProxyResult<ProxyConfig> {
+pub fn process_cli_args() -> ProxyResult<Config> {
     let args = Args::parse();
     let config = match ext_config::Config::builder()
         .add_source(ext_config::File::with_name(&args.config_path))
@@ -22,7 +22,7 @@ pub fn process_cli_args() -> ProxyResult<ProxyConfig> {
         }
     };
 
-    let proxy_config: ProxyConfig = config.try_deserialize()?;
+    let jds_config: Config = config.try_deserialize()?;
 
-    Ok(proxy_config)
+    Ok(jds_config)
 }
