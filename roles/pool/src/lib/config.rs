@@ -1,21 +1,26 @@
+use super::{Error, Result};
 use key_utils::{Secp256k1PublicKey, Secp256k1SecretKey};
-use roles_logic_sv2::{errors::Error, utils::CoinbaseOutput as CoinbaseOutput_};
+use roles_logic_sv2::{
+    errors::Error as RolesLogicSv2Error, utils::CoinbaseOutput as CoinbaseOutput_,
+};
 use serde::Deserialize;
 use std::convert::{TryFrom, TryInto};
 use stratum_common::bitcoin::{Script, TxOut};
 
-pub fn get_coinbase_output(config: &Config) -> Result<Vec<TxOut>, Error> {
+pub fn get_coinbase_output(config: &Config) -> Result<Vec<TxOut>> {
     let mut result = Vec::new();
     for coinbase_output_pool in &config.coinbase_outputs {
         let coinbase_output: CoinbaseOutput_ = coinbase_output_pool.try_into()?;
-        let output_script: Script = coinbase_output.try_into()?;
+        let output_script = coinbase_output.try_into()?;
         result.push(TxOut {
             value: 0,
             script_pubkey: output_script,
         });
     }
     match result.is_empty() {
-        true => Err(Error::EmptyCoinbaseOutputs),
+        true => Err(Error::RolesLogicSv2(
+            roles_logic_sv2::Error::EmptyCoinbaseOutputs,
+        )),
         _ => Ok(result),
     }
 }
@@ -27,9 +32,9 @@ pub struct CoinbaseOutput {
 }
 
 impl TryFrom<&CoinbaseOutput> for CoinbaseOutput_ {
-    type Error = Error;
+    type Error = RolesLogicSv2Error;
 
-    fn try_from(pool_output: &CoinbaseOutput) -> Result<Self, Self::Error> {
+    fn try_from(pool_output: &CoinbaseOutput) -> std::result::Result<Self, Self::Error> {
         match pool_output.output_script_type.as_str() {
             "TEST" | "P2PK" | "P2PKH" | "P2WPKH" | "P2SH" | "P2WSH" | "P2TR" => {
                 Ok(CoinbaseOutput_ {
@@ -37,7 +42,7 @@ impl TryFrom<&CoinbaseOutput> for CoinbaseOutput_ {
                     output_script_value: pool_output.clone().output_script_value,
                 })
             }
-            _ => Err(Error::UnknownOutputScriptType),
+            _ => Err(RolesLogicSv2Error::UnknownOutputScriptType),
         }
     }
 }

@@ -83,7 +83,7 @@ async fn send_status(
             }
         },
         Sender::DownstreamListener(tx) => match e {
-            Error::RolesLogic(roles_logic_sv2::Error::NoDownstreamsConnected) => {
+            Error::RolesLogicSv2(roles_logic_sv2::Error::NoDownstreamsConnected) => {
                 tx.send(Status {
                     state: State::Healthy("No Downstreams Connected".to_string()),
                 })
@@ -126,10 +126,10 @@ pub async fn handle_error(sender: &Sender, e: Error) -> error_handling::ErrorBra
         Error::BinarySv2(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
         Error::Codec(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
         Error::Noise(_) => send_status(sender, e, error_handling::ErrorBranch::Continue).await,
-        Error::RolesLogic(roles_logic_sv2::Error::NoDownstreamsConnected) => {
+        Error::RolesLogicSv2(roles_logic_sv2::Error::NoDownstreamsConnected) => {
             send_status(sender, e, error_handling::ErrorBranch::Continue).await
         }
-        Error::RolesLogic(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::RolesLogicSv2(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
         Error::Custom(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
         Error::Framing(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
         Error::PoisonLock(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,

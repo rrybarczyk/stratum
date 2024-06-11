@@ -71,7 +71,7 @@ impl SetupConnectionHandler {
             CommonRoutingLogic::None,
         )?;
 
-        let message = response.into_message().ok_or(Error::RolesLogic(
+        let message = response.into_message().ok_or(Error::RolesLogicSv2(
             RolesLogicSv2Error::NoDownstreamsConnected,
         ))?;
 
