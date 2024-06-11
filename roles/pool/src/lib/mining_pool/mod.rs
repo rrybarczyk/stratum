@@ -1,4 +1,4 @@
-use super::{pool_config::PoolConfig, status, Error, Result};
+use super::{pool_config, status, Error, PoolConfig, Result};
 use async_channel::{Receiver, Sender};
 use binary_sv2::U256;
 use codec_sv2::{Frame, HandshakeRole, Responder, StandardEitherFrame, StandardSv2Frame};
@@ -500,7 +500,7 @@ impl Pool {
             end: extranonce_len,
         };
         let ids = Arc::new(Mutex::new(roles_logic_sv2::utils::GroupId::new()));
-        let pool_coinbase_outputs = super::pool_config::get_coinbase_output(&config);
+        let pool_coinbase_outputs = pool_config::get_coinbase_output(&config);
         info!("PUB KEY: {:?}", pool_coinbase_outputs);
         let extranonces = ExtendedExtranonce::new(range_0, range_1, range_2);
         let creator = JobsCreators::new(extranonce_len as u8);

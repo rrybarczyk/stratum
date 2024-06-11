@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::convert::{TryFrom, TryInto};
 use stratum_common::bitcoin::{Script, TxOut};
 
-pub fn get_coinbase_output(config: &PoolConfig) -> Result<Vec<TxOut>, Error> {
+pub fn get_coinbase_output(config: &Config) -> Result<Vec<TxOut>, Error> {
     let mut result = Vec::new();
     for coinbase_output_pool in &config.coinbase_outputs {
         let coinbase_output: CoinbaseOutput_ = coinbase_output_pool.try_into()?;
@@ -43,7 +43,7 @@ impl TryFrom<&CoinbaseOutput> for CoinbaseOutput_ {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct PoolConfig {
+pub struct Config {
     pub listen_address: String,
     pub tp_address: String,
     pub tp_authority_public_key: Option<Secp256k1PublicKey>,

@@ -1,4 +1,4 @@
-use crate::lib::{pool_config::PoolConfig, Result};
+use crate::lib::{Config, Result};
 
 use clap::Parser;
 
@@ -10,7 +10,7 @@ struct Args {
 }
 
 #[allow(clippy::result_large_err)]
-pub fn process_cli_args() -> Result<PoolConfig> {
+pub fn process_cli_args() -> Result<Config> {
     let args = Args::parse();
     let config = match config::Config::builder()
         .add_source(config::File::with_name(&args.config_path))
@@ -23,7 +23,7 @@ pub fn process_cli_args() -> Result<PoolConfig> {
         }
     };
 
-    let pool_config: PoolConfig = config.try_deserialize()?;
+    let pool_config: Config = config.try_deserialize()?;
 
     Ok(pool_config)
 }
