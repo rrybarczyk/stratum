@@ -10,7 +10,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(std::fmt::Debug)]
 pub enum Error {
-    ConfigError(config::ConfigError),
+    ConfigError(ext_config::ConfigError),
     Io(std::io::Error),
     ChannelSend(Box<dyn std::marker::Send + Debug>),
     ChannelRecv(async_channel::RecvError),
@@ -23,12 +23,6 @@ pub enum Error {
     ComponentShutdown(String),
     Custom(String),
     Sv2ProtocolError((u32, Mining<'static>)),
-}
-
-impl From<config::ConfigError> for Error {
-    fn from(e: config::ConfigError) -> Error {
-        Error::ConfigError(e)
-    }
 }
 
 impl std::fmt::Display for Error {
@@ -51,6 +45,12 @@ impl std::fmt::Display for Error {
                 write!(f, "Received Sv2 Protocol Error from upstream: `{:?}`", e)
             }
         }
+    }
+}
+
+impl From<ext_config::ConfigError> for Error {
+    fn from(e: ext_config::ConfigError) -> Error {
+        Error::ConfigError(e)
     }
 }
 
