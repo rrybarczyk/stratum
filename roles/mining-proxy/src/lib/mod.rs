@@ -1,6 +1,6 @@
+pub mod config;
 pub mod downstream_mining;
 pub mod error;
-pub mod proxy_config;
 pub mod upstream_mining;
 
 use once_cell::sync::OnceCell;
@@ -100,7 +100,7 @@ pub enum ChannelKind {
 pub async fn initialize_r_logic(
     upstreams: &[UpstreamMiningValues],
     group_id: Arc<Mutex<GroupId>>,
-    config: proxy_config::ProxyConfig,
+    config: config::ProxyConfig,
 ) -> RLogic {
     let channel_ids = Arc::new(Mutex::new(Id::new()));
     let mut upstream_mining_nodes = Vec::with_capacity(upstreams.len());
