@@ -1,4 +1,4 @@
-use crate::lib::{jds_config::JdsConfig, Result};
+use crate::lib::{Config, Result};
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -9,7 +9,7 @@ struct Args {
 }
 
 #[allow(clippy::result_large_err)]
-pub fn process_cli_args() -> Result<JdsConfig> {
+pub fn process_cli_args() -> Result<Config> {
     let args = Args::parse();
     let config = match config::Config::builder()
         .add_source(config::File::with_name(&args.config_path))
@@ -22,7 +22,7 @@ pub fn process_cli_args() -> Result<JdsConfig> {
         }
     };
 
-    let jds_config: JdsConfig = config.try_deserialize()?;
+    let jds_config: Config = config.try_deserialize()?;
 
     Ok(jds_config)
 }

@@ -7,7 +7,7 @@ use std::{
 };
 use stratum_common::bitcoin::{Script, TxOut};
 
-pub fn get_coinbase_output(config: &JdsConfig) -> Result<Vec<TxOut>, Error> {
+pub fn get_coinbase_output(config: &Config) -> Result<Vec<TxOut>, Error> {
     let mut result = Vec::new();
     for coinbase_output_pool in &config.coinbase_outputs {
         let coinbase_output: CoinbaseOutput_ = coinbase_output_pool.try_into()?;
@@ -44,7 +44,7 @@ pub struct CoinbaseOutput {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct JdsConfig {
+pub struct Config {
     pub listen_jd_address: String,
     pub authority_public_key: Secp256k1PublicKey,
     pub authority_secret_key: Secp256k1SecretKey,

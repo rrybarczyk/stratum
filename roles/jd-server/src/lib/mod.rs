@@ -1,8 +1,11 @@
+pub mod config;
 pub(crate) mod error;
-pub mod jds_config;
 pub mod job_declarator;
 pub mod mempool;
 pub mod status;
+
+pub(crate) use config::Config;
+pub use config::Config as JdsConfig;
 
 pub(crate) use error::{Error, Result};
 pub use error::{Error as JdsError, Result as JdsResult};
