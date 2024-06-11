@@ -1,14 +1,14 @@
 use super::{Error, Result};
 use key_utils::{Secp256k1PublicKey, Secp256k1SecretKey};
 use roles_logic_sv2::{
-    errors::Error as RolesLogicSv2Error, utils::CoinbaseOutput as CoinbaseOutput_,
+    utils::CoinbaseOutput as CoinbaseOutput_,
 };
 use serde::Deserialize;
 use std::{
     convert::{TryFrom, TryInto},
     time::Duration,
 };
-use stratum_common::bitcoin::{Script, TxOut};
+use stratum_common::bitcoin::{TxOut};
 
 pub fn get_coinbase_output(config: &Config) -> Result<Vec<TxOut>> {
     let mut result = Vec::new();

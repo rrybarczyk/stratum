@@ -13,11 +13,10 @@ pub use error::{Error as JdsError, Result as JdsResult};
 use codec_sv2::{StandardEitherFrame, StandardSv2Frame};
 use key_utils::{Secp256k1PublicKey, Secp256k1SecretKey};
 use roles_logic_sv2::{
-    errors::Error as RolesLogicSv2Error, parsers::PoolMessages as JdsMessages,
-    utils::CoinbaseOutput as CoinbaseOutput_,
+    parsers::PoolMessages as JdsMessages,
 };
 use serde::Deserialize;
-use std::{convert::TryFrom, time::Duration};
+use std::{time::Duration};
 
 pub type Message = JdsMessages<'static>;
 pub type StdFrame = StandardSv2Frame<Message>;
