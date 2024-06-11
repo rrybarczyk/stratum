@@ -1,4 +1,4 @@
-use crate::lib::{error::JdcResult, jdc_config::JdcConfig};
+use crate::lib::{jdc_config::JdcConfig, Result};
 
 use clap::Parser;
 
@@ -10,10 +10,10 @@ struct Args {
 }
 
 #[allow(clippy::result_large_err)]
-pub fn process_cli_args<'a>() -> JdcResult<'a, JdcConfig> {
+pub fn process_cli_args<'a>() -> Result<'a, JdcConfig> {
     let args = Args::parse();
-    let config = match config::Config::builder()
-        .add_source(config::File::with_name(&args.config_path))
+    let config = match config_ext::Config::builder()
+        .add_source(config_ext::File::with_name(&args.config_path))
         .build()
     {
         Ok(cfg) => cfg,
