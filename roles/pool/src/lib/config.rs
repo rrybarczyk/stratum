@@ -1,8 +1,6 @@
 use super::{Error, Result};
 use key_utils::{Secp256k1PublicKey, Secp256k1SecretKey};
-use roles_logic_sv2::{
-    errors::Error as RolesLogicSv2Error, utils::CoinbaseOutput as CoinbaseOutput_,
-};
+use roles_logic_sv2::utils::CoinbaseOutput as CoinbaseOutput_;
 use serde::Deserialize;
 use std::convert::{TryFrom, TryInto};
 use stratum_common::bitcoin::TxOut;
@@ -32,17 +30,19 @@ pub struct CoinbaseOutput {
 }
 
 impl TryFrom<&CoinbaseOutput> for CoinbaseOutput_ {
-    type Error = RolesLogicSv2Error;
+    type Error = Error;
 
-    fn try_from(pool_output: &CoinbaseOutput) -> std::result::Result<Self, Self::Error> {
+    fn try_from(pool_output: &CoinbaseOutput) -> Result<Self> {
         match pool_output.output_script_type.as_str() {
             "TEST" | "P2PK" | "P2PKH" | "P2WPKH" | "P2SH" | "P2WSH" | "P2TR" => {
                 Ok(CoinbaseOutput_ {
-                    output_script_type: pool_output.clone().output_script_type,
-                    output_script_value: pool_output.clone().output_script_value,
+                    output_script_type: pool_output.output_script_type.clone(),
+                    output_script_value: pool_output.output_script_value.clone(),
                 })
             }
-            _ => Err(RolesLogicSv2Error::UnknownOutputScriptType),
+            _ => Err(Error::RolesLogicSv2(
+                roles_logic_sv2::Error::UnknownOutputScriptType,
+            )),
         }
     }
 }
