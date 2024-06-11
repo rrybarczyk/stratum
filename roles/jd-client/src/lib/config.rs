@@ -1,4 +1,4 @@
-use crate::{Error, Result};
+use super::{Error, Result};
 use key_utils::{Secp256k1PublicKey, Secp256k1SecretKey};
 use roles_logic_sv2::utils::CoinbaseOutput as CoinbaseOutput_;
 use serde::Deserialize;
