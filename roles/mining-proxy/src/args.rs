@@ -1,4 +1,4 @@
-use crate::lib::{error::ProxyResult, Config};
+use crate::lib::{Config, Result};
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -9,7 +9,7 @@ struct Args {
 }
 
 #[allow(clippy::result_large_err)]
-pub fn process_cli_args() -> ProxyResult<Config> {
+pub fn process_cli_args() -> Result<Config> {
     let args = Args::parse();
     let config = match ext_config::Config::builder()
         .add_source(ext_config::File::with_name(&args.config_path))

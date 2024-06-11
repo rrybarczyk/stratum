@@ -1,7 +1,10 @@
 pub mod config;
 pub mod downstream_mining;
-pub mod error;
+mod error;
 pub mod upstream_mining;
+
+pub(crate) use error::{Error, Result};
+pub use error::{Error as ProxyError, Result as ProxyResult};
 
 pub(crate) use config::Config;
 pub use config::Config as ProxyConfig;
