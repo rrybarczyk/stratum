@@ -1,6 +1,6 @@
+use super::super::{Error, Result};
 use super::{Downstream, DownstreamMessages, SetDownstreamTarget};
 
-use super::super::error::{TProxyError, TProxyResult};
 use roles_logic_sv2::utils::Mutex;
 use std::{ops::Div, sync::Arc};
 use v1::json_rpc;
@@ -14,7 +14,7 @@ impl Downstream {
     pub async fn init_difficulty_management(
         self_: Arc<Mutex<Self>>,
         init_target: &[u8],
-    ) -> TProxyResult<'static, ()> {
+    ) -> Result<'static, ()> {
         let (connection_id, upstream_difficulty_config, miner_hashrate) = self_
             .safe_lock(|d| {
                 let timestamp_secs = std::time::SystemTime::now()
@@ -29,13 +29,13 @@ impl Downstream {
                     d.difficulty_mgmt.min_individual_miner_hashrate,
                 )
             })
-            .map_err(|_e| TProxyError::PoisonLock)?;
+            .map_err(|_e| Error::PoisonLock)?;
         // add new connection hashrate to channel hashrate
         upstream_difficulty_config
             .safe_lock(|u| {
                 u.channel_nominal_hashrate += miner_hashrate;
             })
-            .map_err(|_e| TProxyError::PoisonLock)?;
+            .map_err(|_e| Error::PoisonLock)?;
         // update downstream target with bridge
         let init_target = binary_sv2::U256::try_from(init_target.to_vec())?;
         Self::send_message_upstream(
@@ -52,9 +52,7 @@ impl Downstream {
 
     /// Called before a miner disconnects so we can remove the miner's hashrate from the aggregated channel hashrate
     #[allow(clippy::result_large_err)]
-    pub fn remove_miner_hashrate_from_channel(
-        self_: Arc<Mutex<Self>>,
-    ) -> TProxyResult<'static, ()> {
+    pub fn remove_miner_hashrate_from_channel(self_: Arc<Mutex<Self>>) -> Result<'static, ()> {
         self_
             .safe_lock(|d| {
                 d.upstream_difficulty_config
@@ -66,21 +64,19 @@ impl Downstream {
                             u.channel_nominal_hashrate = 0.0;
                         }
                     })
-                    .map_err(|_e| TProxyError::PoisonLock)
+                    .map_err(|_e| Error::PoisonLock)
             })
-            .map_err(|_e| TProxyError::PoisonLock)??;
+            .map_err(|_e| Error::PoisonLock)??;
         Ok(())
     }
 
     /// if enough shares have been submitted according to the config, this function updates the difficulty for the connection and sends the new
     /// difficulty to the miner
-    pub async fn try_update_difficulty_settings(
-        self_: Arc<Mutex<Self>>,
-    ) -> TProxyResult<'static, ()> {
+    pub async fn try_update_difficulty_settings(self_: Arc<Mutex<Self>>) -> Result<'static, ()> {
         let (diff_mgmt, channel_id) = self_
             .clone()
             .safe_lock(|d| (d.difficulty_mgmt.clone(), d.connection_id))
-            .map_err(|_e| TProxyError::PoisonLock)?;
+            .map_err(|_e| Error::PoisonLock)?;
         tracing::debug!(
             "Time of last diff update: {:?}",
             diff_mgmt.timestamp_of_last_update
@@ -94,7 +90,7 @@ impl Downstream {
             diff_mgmt.shares_per_minute.into(),
         ) {
             Ok(target) => target.to_vec(),
-            Err(v) => return Err(TProxyError::TargetError(v)),
+            Err(v) => return Err(Error::TargetError(v)),
         };
         if let Some(new_hash_rate) =
             Self::update_miner_hashrate(self_.clone(), prev_target.clone())?
@@ -104,7 +100,7 @@ impl Downstream {
                 diff_mgmt.shares_per_minute.into(),
             ) {
                 Ok(target) => target,
-                Err(v) => return Err(TProxyError::TargetError(v)),
+                Err(v) => return Err(Error::TargetError(v)),
             };
             tracing::debug!("New target from hashrate: {:?}", new_target.inner_as_ref());
             let message = Self::get_set_difficulty(new_target.to_vec())?;
@@ -126,7 +122,7 @@ impl Downstream {
 
     /// calculates the target according to the current stored hashrate of the miner
     #[allow(clippy::result_large_err)]
-    pub fn hash_rate_to_target(self_: Arc<Mutex<Self>>) -> TProxyResult<'static, Vec<u8>> {
+    pub fn hash_rate_to_target(self_: Arc<Mutex<Self>>) -> Result<'static, Vec<u8>> {
         self_
             .safe_lock(|d| {
                 match roles_logic_sv2::utils::hash_rate_to_target(
@@ -134,20 +130,20 @@ impl Downstream {
                     d.difficulty_mgmt.shares_per_minute.into(),
                 ) {
                     Ok(target) => Ok(target.to_vec()),
-                    Err(e) => Err(TProxyError::TargetError(e)),
+                    Err(e) => Err(Error::TargetError(e)),
                 }
             })
-            .map_err(|_e| TProxyError::PoisonLock)?
+            .map_err(|_e| Error::PoisonLock)?
     }
 
     /// increments the number of shares since the last difficulty update
     #[allow(clippy::result_large_err)]
-    pub(super) fn save_share(self_: Arc<Mutex<Self>>) -> TProxyResult<'static, ()> {
+    pub(super) fn save_share(self_: Arc<Mutex<Self>>) -> Result<'static, ()> {
         self_
             .safe_lock(|d| {
                 d.difficulty_mgmt.submits_since_last_update += 1;
             })
-            .map_err(|_e| TProxyError::PoisonLock)?;
+            .map_err(|_e| Error::PoisonLock)?;
         Ok(())
     }
 
@@ -155,7 +151,7 @@ impl Downstream {
     /// difficulty for the Downstream role and creates the SV1 `mining.set_difficulty` message to
     /// be sent to the Downstream role.
     #[allow(clippy::result_large_err)]
-    pub(super) fn get_set_difficulty(target: Vec<u8>) -> TProxyResult<'static, json_rpc::Message> {
+    pub(super) fn get_set_difficulty(target: Vec<u8>) -> Result<'static, json_rpc::Message> {
         let value = Downstream::difficulty_from_target(target)?;
         tracing::debug!("Difficulty from target: {:?}", value);
         let set_target = v1::methods::server_to_client::SetDifficulty { value };
@@ -166,7 +162,7 @@ impl Downstream {
     /// Converts target received by the `SetTarget` SV2 message from the Upstream role into the
     /// difficulty for the Downstream role sent via the SV1 `mining.set_difficulty` message.
     #[allow(clippy::result_large_err)]
-    pub(super) fn difficulty_from_target(mut target: Vec<u8>) -> TProxyResult<'static, f64> {
+    pub(super) fn difficulty_from_target(mut target: Vec<u8>) -> Result<'static, f64> {
         // reverse because target is LE and this function relies on BE
         target.reverse();
         let target = target.as_slice();
@@ -201,7 +197,7 @@ impl Downstream {
     pub fn update_miner_hashrate(
         self_: Arc<Mutex<Self>>,
         miner_target: Vec<u8>,
-    ) -> TProxyResult<'static, Option<f32>> {
+    ) -> Result<'static, Option<f32>> {
         self_
             .safe_lock(|d| {
                 let timestamp_secs = std::time::SystemTime::now()
@@ -289,7 +285,7 @@ impl Downstream {
                     Ok(None)
                 }
             })
-            .map_err(|_e| TProxyError::PoisonLock)?
+            .map_err(|_e| Error::PoisonLock)?
     }
 
     /// Helper function to check if target is set to zero for some reason (typically happens when

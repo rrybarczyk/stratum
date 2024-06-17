@@ -1,4 +1,4 @@
-use crate::lib::{error::TProxyResult, tproxy_config::TProxyConfig};
+use crate::lib::{tproxy_config::TProxyConfig, Result};
 
 use clap::Parser;
 
@@ -10,7 +10,7 @@ struct Args {
 }
 
 #[allow(clippy::result_large_err)]
-pub fn process_cli_args<'a>() -> TProxyResult<'a, TProxyConfig> {
+pub fn process_cli_args<'a>() -> Result<'a, TProxyConfig> {
     let args = Args::parse();
     let config = match config::Config::builder()
         .add_source(config::File::with_name(&args.config_path))
