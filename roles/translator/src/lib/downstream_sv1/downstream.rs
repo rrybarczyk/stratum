@@ -1,7 +1,7 @@
 use super::super::{Error, Result};
 use crate::{
+    config::{DownstreamDifficultyConfig, UpstreamDifficultyConfig},
     downstream_sv1, status,
-    tproxy_config::{DownstreamDifficultyConfig, UpstreamDifficultyConfig},
 };
 use async_channel::{bounded, Receiver, Sender};
 use async_std::{

@@ -1,8 +1,8 @@
 use super::super::{ChannelSendError, Error, Result};
 use crate::{
+    config::UpstreamDifficultyConfig,
     downstream_sv1::Downstream,
     status,
-    tproxy_config::UpstreamDifficultyConfig,
     upstream_sv2::{EitherFrame, Message, StdFrame, UpstreamConnection},
 };
 use async_channel::{Receiver, Sender};
