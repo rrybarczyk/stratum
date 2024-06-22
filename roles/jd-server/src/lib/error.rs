@@ -8,18 +8,19 @@ use roles_logic_sv2::parsers::Mining;
 
 use crate::mempool::error::JdsMempoolError;
 
-pub type JdsResult<T> = core::result::Result<T, JdsError>;
+pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(std::fmt::Debug)]
-pub enum JdsError {
-    ConfigError(config::ConfigError),
+pub enum Error {
+    ConfigError(ext_config::ConfigError),
     Io(std::io::Error),
     ChannelSend(Box<dyn std::marker::Send + Debug>),
     ChannelRecv(async_channel::RecvError),
     BinarySv2(binary_sv2::Error),
     Codec(codec_sv2::Error),
     Noise(noise_sv2::Error),
-    RolesLogic(roles_logic_sv2::Error),
+    /// Errors from `roles_logic_sv2` crate.
+    RolesSv2Logic(roles_logic_sv2::errors::Error),
     Framing(codec_sv2::framing_sv2::Error),
     PoisonLock(String),
     Custom(String),
@@ -29,9 +30,9 @@ pub enum JdsError {
     NoLastDeclaredJob,
 }
 
-impl std::fmt::Display for JdsError {
+impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use JdsError::*;
+        use Error::*;
         match self {
             ConfigError(e) => write!(f, "Config error: {:?}", e),
             Io(ref e) => write!(f, "I/O error: `{:?}", e),
@@ -41,7 +42,7 @@ impl std::fmt::Display for JdsError {
             Codec(ref e) => write!(f, "Codec SV2 error: `{:?}", e),
             Framing(ref e) => write!(f, "Framing SV2 error: `{:?}`", e),
             Noise(ref e) => write!(f, "Noise SV2 error: `{:?}", e),
-            RolesLogic(ref e) => write!(f, "Roles Logic SV2 error: `{:?}`", e),
+            RolesSv2Logic(ref e) => write!(f, "Roles SV2 Logic Error: `{:?}`", e),
             PoisonLock(ref e) => write!(f, "Poison lock: {:?}", e),
             Custom(ref e) => write!(f, "Custom SV2 error: `{:?}`", e),
             Sv2ProtocolError(ref e) => {
@@ -56,79 +57,79 @@ impl std::fmt::Display for JdsError {
     }
 }
 
-impl From<config::ConfigError> for JdsError {
-    fn from(e: config::ConfigError) -> JdsError {
-        JdsError::ConfigError(e)
+impl From<ext_config::ConfigError> for Error {
+    fn from(e: ext_config::ConfigError) -> Error {
+        Error::ConfigError(e)
     }
 }
 
-impl From<std::io::Error> for JdsError {
-    fn from(e: std::io::Error) -> JdsError {
-        JdsError::Io(e)
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Error {
+        Error::Io(e)
     }
 }
 
-impl From<async_channel::RecvError> for JdsError {
-    fn from(e: async_channel::RecvError) -> JdsError {
-        JdsError::ChannelRecv(e)
+impl From<async_channel::RecvError> for Error {
+    fn from(e: async_channel::RecvError) -> Error {
+        Error::ChannelRecv(e)
     }
 }
 
-impl From<binary_sv2::Error> for JdsError {
-    fn from(e: binary_sv2::Error) -> JdsError {
-        JdsError::BinarySv2(e)
+impl From<binary_sv2::Error> for Error {
+    fn from(e: binary_sv2::Error) -> Error {
+        Error::BinarySv2(e)
     }
 }
 
-impl From<codec_sv2::Error> for JdsError {
-    fn from(e: codec_sv2::Error) -> JdsError {
-        JdsError::Codec(e)
+impl From<codec_sv2::Error> for Error {
+    fn from(e: codec_sv2::Error) -> Error {
+        Error::Codec(e)
     }
 }
 
-impl From<noise_sv2::Error> for JdsError {
-    fn from(e: noise_sv2::Error) -> JdsError {
-        JdsError::Noise(e)
+impl From<noise_sv2::Error> for Error {
+    fn from(e: noise_sv2::Error) -> Error {
+        Error::Noise(e)
     }
 }
 
-impl From<roles_logic_sv2::Error> for JdsError {
-    fn from(e: roles_logic_sv2::Error) -> JdsError {
-        JdsError::RolesLogic(e)
+impl From<roles_logic_sv2::errors::Error> for Error {
+    fn from(e: roles_logic_sv2::errors::Error) -> Self {
+        Error::RolesSv2Logic(e)
     }
 }
 
-impl<T: 'static + std::marker::Send + Debug> From<async_channel::SendError<T>> for JdsError {
-    fn from(e: async_channel::SendError<T>) -> JdsError {
-        JdsError::ChannelSend(Box::new(e))
+impl<T: 'static + std::marker::Send + Debug> From<async_channel::SendError<T>> for Error {
+    fn from(e: async_channel::SendError<T>) -> Error {
+        Error::ChannelSend(Box::new(e))
     }
 }
 
-impl From<String> for JdsError {
-    fn from(e: String) -> JdsError {
-        JdsError::Custom(e)
+impl From<String> for Error {
+    fn from(e: String) -> Error {
+        Error::Custom(e)
     }
 }
-impl From<codec_sv2::framing_sv2::Error> for JdsError {
-    fn from(e: codec_sv2::framing_sv2::Error) -> JdsError {
-        JdsError::Framing(e)
-    }
-}
-
-impl<T> From<PoisonError<MutexGuard<'_, T>>> for JdsError {
-    fn from(e: PoisonError<MutexGuard<T>>) -> JdsError {
-        JdsError::PoisonLock(e.to_string())
+impl From<codec_sv2::framing_sv2::Error> for Error {
+    fn from(e: codec_sv2::framing_sv2::Error) -> Error {
+        Error::Framing(e)
     }
 }
 
-impl From<(u32, Mining<'static>)> for JdsError {
+impl<T> From<PoisonError<MutexGuard<'_, T>>> for Error {
+    fn from(e: PoisonError<MutexGuard<T>>) -> Error {
+        Error::PoisonLock(e.to_string())
+    }
+}
+
+impl From<(u32, Mining<'static>)> for Error {
     fn from(e: (u32, Mining<'static>)) -> Self {
-        JdsError::Sv2ProtocolError(e)
+        Error::Sv2ProtocolError(e)
     }
 }
 
-impl From<JdsMempoolError> for JdsError {
+impl From<JdsMempoolError> for Error {
     fn from(error: JdsMempoolError) -> Self {
-        JdsError::MempoolError(error)
+        Error::MempoolError(error)
     }
 }

@@ -1,6 +1,6 @@
 use roles_logic_sv2::parsers::Mining;
 
-use super::error::PoolError;
+use super::Error;
 
 /// Each sending side of the status channel
 /// should be wrapped with this enum to allow
@@ -44,8 +44,8 @@ impl Clone for Sender {
 
 #[derive(Debug)]
 pub enum State {
-    DownstreamShutdown(PoolError),
-    TemplateProviderShutdown(PoolError),
+    DownstreamShutdown(Error),
+    TemplateProviderShutdown(Error),
     DownstreamInstanceDropped(u32),
     Healthy(String),
 }
@@ -61,12 +61,12 @@ pub struct Status {
 /// the main status loop can decide what should happen
 async fn send_status(
     sender: &Sender,
-    e: PoolError,
+    e: Error,
     outcome: error_handling::ErrorBranch,
 ) -> error_handling::ErrorBranch {
     match sender {
         Sender::Downstream(tx) => match e {
-            PoolError::Sv2ProtocolError((id, Mining::OpenMiningChannelError(_))) => {
+            Error::Sv2ProtocolError((id, Mining::OpenMiningChannelError(_))) => {
                 tx.send(Status {
                     state: State::DownstreamInstanceDropped(id),
                 })
@@ -83,7 +83,7 @@ async fn send_status(
             }
         },
         Sender::DownstreamListener(tx) => match e {
-            PoolError::RolesLogic(roles_logic_sv2::Error::NoDownstreamsConnected) => {
+            Error::RolesLogicSv2(roles_logic_sv2::Error::NoDownstreamsConnected) => {
                 tx.send(Status {
                     state: State::Healthy("No Downstreams Connected".to_string()),
                 })
@@ -111,40 +111,32 @@ async fn send_status(
 
 // this is called by `error_handling::handle_result!`
 // todo: as described in issue #777, we should replace every generic *(_) with specific errors and cover every possible combination
-pub async fn handle_error(sender: &Sender, e: PoolError) -> error_handling::ErrorBranch {
+pub async fn handle_error(sender: &Sender, e: Error) -> error_handling::ErrorBranch {
     tracing::debug!("Error: {:?}", &e);
     match e {
-        PoolError::ConfigError(_) => {
-            send_status(sender, e, error_handling::ErrorBranch::Break).await
-        }
-        PoolError::Io(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
-        PoolError::ChannelSend(_) => {
+        Error::ConfigError(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::Io(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::ChannelSend(_) => {
             //This should be a continue because if we fail to send to 1 downstream we should continue
             //processing the other downstreams in the loop we are in. Otherwise if a downstream fails
             //to send to then subsequent downstreams in the map won't get send called on them
             send_status(sender, e, error_handling::ErrorBranch::Continue).await
         }
-        PoolError::ChannelRecv(_) => {
-            send_status(sender, e, error_handling::ErrorBranch::Break).await
-        }
-        PoolError::BinarySv2(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
-        PoolError::Codec(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
-        PoolError::Noise(_) => send_status(sender, e, error_handling::ErrorBranch::Continue).await,
-        PoolError::RolesLogic(roles_logic_sv2::Error::NoDownstreamsConnected) => {
+        Error::ChannelRecv(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::BinarySv2(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::Codec(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::Noise(_) => send_status(sender, e, error_handling::ErrorBranch::Continue).await,
+        Error::RolesLogicSv2(roles_logic_sv2::Error::NoDownstreamsConnected) => {
             send_status(sender, e, error_handling::ErrorBranch::Continue).await
         }
-        PoolError::RolesLogic(_) => {
+        Error::RolesLogicSv2(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::Custom(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::Framing(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::PoisonLock(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
+        Error::ComponentShutdown(_) => {
             send_status(sender, e, error_handling::ErrorBranch::Break).await
         }
-        PoolError::Custom(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
-        PoolError::Framing(_) => send_status(sender, e, error_handling::ErrorBranch::Break).await,
-        PoolError::PoisonLock(_) => {
-            send_status(sender, e, error_handling::ErrorBranch::Break).await
-        }
-        PoolError::ComponentShutdown(_) => {
-            send_status(sender, e, error_handling::ErrorBranch::Break).await
-        }
-        PoolError::Sv2ProtocolError(_) => {
+        Error::Sv2ProtocolError(_) => {
             send_status(sender, e, error_handling::ErrorBranch::Break).await
         }
     }

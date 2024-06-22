@@ -1,8 +1,4 @@
-use super::{
-    error::{PoolError, PoolResult},
-    pool_config::PoolConfig,
-    status,
-};
+use super::{pool_config, status, Error, PoolConfig, Result};
 use async_channel::{Receiver, Sender};
 use binary_sv2::U256;
 use codec_sv2::{Frame, HandshakeRole, Responder, StandardEitherFrame, StandardSv2Frame};
@@ -13,7 +9,7 @@ use nohash_hasher::BuildNoHashHasher;
 use roles_logic_sv2::{
     channel_logic::channel_factory::PoolChannelFactory,
     common_properties::{CommonDownstreamData, IsDownstream, IsMiningDownstream},
-    errors::Error,
+    errors::Error as RolesLogicSv2Error,
     handlers::mining::{ParseDownstreamMiningMessages, SendTo},
     job_creator::JobsCreators,
     mining_sv2::{ExtendedExtranonce, SetNewPrevHash as SetNPH},
@@ -48,9 +44,9 @@ pub struct CoinbaseOutput {
 }
 
 impl TryFrom<&CoinbaseOutput> for CoinbaseOutput_ {
-    type Error = Error;
+    type Error = RolesLogicSv2Error;
 
-    fn try_from(pool_output: &CoinbaseOutput) -> Result<Self, Self::Error> {
+    fn try_from(pool_output: &CoinbaseOutput) -> std::result::Result<Self, Self::Error> {
         match pool_output.output_script_type.as_str() {
             "TEST" | "P2PK" | "P2PKH" | "P2WPKH" | "P2SH" | "P2WSH" | "P2TR" => {
                 Ok(CoinbaseOutput_ {
@@ -58,7 +54,7 @@ impl TryFrom<&CoinbaseOutput> for CoinbaseOutput_ {
                     output_script_value: pool_output.clone().output_script_value,
                 })
             }
-            _ => Err(Error::UnknownOutputScriptType),
+            _ => Err(RolesLogicSv2Error::UnknownOutputScriptType),
         }
     }
 }
@@ -108,7 +104,7 @@ impl Downstream {
         channel_factory: Arc<Mutex<PoolChannelFactory>>,
         status_tx: status::Sender,
         address: SocketAddr,
-    ) -> PoolResult<Arc<Mutex<Self>>> {
+    ) -> Result<Arc<Mutex<Self>>> {
         let setup_connection = Arc::new(Mutex::new(SetupConnectionHandler::new()));
         let downstream_data =
             SetupConnectionHandler::setup(setup_connection, &mut receiver, &mut sender, address)
@@ -134,7 +130,7 @@ impl Downstream {
             debug!("Starting up downstream receiver");
             let receiver_res = cloned
                 .safe_lock(|d| d.receiver.clone())
-                .map_err(|e| PoolError::PoisonLock(e.to_string()));
+                .map_err(|e| Error::PoisonLock(e.to_string()));
             let receiver = match receiver_res {
                 Ok(recv) => recv,
                 Err(e) => {
@@ -156,9 +152,9 @@ impl Downstream {
             loop {
                 match receiver.recv().await {
                     Ok(received) => {
-                        let received: Result<StdFrame, _> = received
+                        let received: std::result::Result<StdFrame, _> = received
                             .try_into()
-                            .map_err(|e| PoolError::Codec(codec_sv2::Error::FramingSv2Error(e)));
+                            .map_err(|e| Error::Codec(codec_sv2::Error::FramingSv2Error(e)));
                         let std_frame = handle_result!(status_tx, received);
                         handle_result!(
                             status_tx,
@@ -168,7 +164,7 @@ impl Downstream {
                     _ => {
                         let res = pool
                             .safe_lock(|p| p.downstreams.remove(&id))
-                            .map_err(|e| PoolError::PoisonLock(e.to_string()));
+                            .map_err(|e| Error::PoisonLock(e.to_string()));
                         handle_result!(status_tx, res);
                         error!("Downstream {} disconnected", id);
                         break;
@@ -180,10 +176,10 @@ impl Downstream {
         Ok(self_)
     }
 
-    pub async fn next(self_mutex: Arc<Mutex<Self>>, mut incoming: StdFrame) -> PoolResult<()> {
+    pub async fn next(self_mutex: Arc<Mutex<Self>>, mut incoming: StdFrame) -> Result<()> {
         let message_type = incoming
             .get_header()
-            .ok_or_else(|| PoolError::Custom(String::from("No header set")))?
+            .ok_or_else(|| Error::Custom(String::from("No header set")))?
             .msg_type();
         let payload = incoming.payload();
         debug!(
@@ -202,8 +198,8 @@ impl Downstream {
     #[async_recursion::async_recursion]
     async fn match_send_to(
         self_: Arc<Mutex<Self>>,
-        send_to: Result<SendTo<()>, Error>,
-    ) -> PoolResult<()> {
+        send_to: std::result::Result<SendTo<()>, RolesLogicSv2Error>,
+    ) -> Result<()> {
         match send_to {
             Ok(SendTo::Respond(message)) => {
                 debug!("Sending to downstream: {:?}", message);
@@ -213,11 +209,8 @@ impl Downstream {
                     Self::send(self_.clone(), message.clone()).await?;
                     let downstream_id = self_
                         .safe_lock(|d| d.id)
-                        .map_err(|e| Error::PoisonLock(e.to_string()))?;
-                    return Err(PoolError::Sv2ProtocolError((
-                        downstream_id,
-                        message.clone(),
-                    )));
+                        .map_err(|e| RolesLogicSv2Error::PoisonLock(e.to_string()))?;
+                    return Err(Error::Sv2ProtocolError((downstream_id, message.clone())));
                 } else {
                     Self::send(self_, message.clone()).await?;
                 }
@@ -234,7 +227,7 @@ impl Downstream {
                 error!("Unexpected SendTo: {:?}", m);
                 panic!();
             }
-            Err(Error::UnexpectedMessage(_message_type)) => todo!(),
+            Err(RolesLogicSv2Error::UnexpectedMessage(_message_type)) => todo!(),
             Err(e) => {
                 error!("Error: {:?}", e);
                 todo!()
@@ -246,7 +239,7 @@ impl Downstream {
     async fn send(
         self_mutex: Arc<Mutex<Self>>,
         message: roles_logic_sv2::parsers::Mining<'static>,
-    ) -> PoolResult<()> {
+    ) -> Result<()> {
         //let message = if let Mining::NewExtendedMiningJob(job) = message {
         //    Mining::NewExtendedMiningJob(extended_job_to_non_segwit(job, 32)?)
         //} else {
@@ -266,7 +259,7 @@ pub fn verify_token(
     tx_hash_list_hash: U256,
     signature: secp256k1::schnorr::Signature,
     pub_key: key_utils::Secp256k1PublicKey,
-) -> Result<(), secp256k1::Error> {
+) -> std::result::Result<(), secp256k1::Error> {
     let message: Vec<u8> = tx_hash_list_hash.to_vec();
 
     let secp = SignatureService::default();
@@ -292,7 +285,7 @@ impl Pool {
     async fn accept_incoming_plain_connection(
         self_: Arc<Mutex<Pool>>,
         config: Configuration,
-    ) -> PoolResult<()> {
+    ) -> Result<()> {
         let listner = TcpListener::bind(&config.test_only_listen_adress_plain)
             .await
             .unwrap();
@@ -317,10 +310,7 @@ impl Pool {
         Ok(())
     }
 
-    async fn accept_incoming_connection(
-        self_: Arc<Mutex<Pool>>,
-        config: PoolConfig,
-    ) -> PoolResult<()> {
+    async fn accept_incoming_connection(self_: Arc<Mutex<Pool>>, config: PoolConfig) -> Result<()> {
         let status_tx = self_.safe_lock(|s| s.status_tx.clone())?;
         let listener = TcpListener::bind(&config.listen_address).await?;
         info!(
@@ -331,7 +321,7 @@ impl Pool {
             let address = stream.peer_addr().unwrap();
             debug!(
                 "New connection from {:?}",
-                stream.peer_addr().map_err(PoolError::Io)
+                stream.peer_addr().map_err(Error::Io)
             );
 
             let responder = Responder::from_authority_kp(
@@ -369,7 +359,7 @@ impl Pool {
         receiver: Receiver<EitherFrame>,
         sender: Sender<EitherFrame>,
         address: SocketAddr,
-    ) -> PoolResult<()> {
+    ) -> Result<()> {
         let solution_sender = self_.safe_lock(|p| p.solution_sender.clone())?;
         let status_tx = self_.safe_lock(|s| s.status_tx.clone())?;
         let channel_factory = self_.safe_lock(|s| s.channel_factory.clone())?;
@@ -398,33 +388,33 @@ impl Pool {
         self_: Arc<Mutex<Self>>,
         rx: Receiver<SetNewPrevHash<'static>>,
         sender_message_received_signal: Sender<()>,
-    ) -> PoolResult<()> {
+    ) -> Result<()> {
         let status_tx = self_
             .safe_lock(|s| s.status_tx.clone())
-            .map_err(|e| PoolError::PoisonLock(e.to_string()))?;
+            .map_err(|e| Error::PoisonLock(e.to_string()))?;
         while let Ok(new_prev_hash) = rx.recv().await {
             debug!("New prev hash received: {:?}", new_prev_hash);
             let res = self_
                 .safe_lock(|s| {
                     s.last_prev_hash_template_id = new_prev_hash.template_id;
                 })
-                .map_err(|e| PoolError::PoisonLock(e.to_string()));
+                .map_err(|e| Error::PoisonLock(e.to_string()));
             handle_result!(status_tx, res);
 
             let job_id_res = self_
                 .safe_lock(|s| {
                     s.channel_factory
                         .safe_lock(|f| f.on_new_prev_hash_from_tp(&new_prev_hash))
-                        .map_err(|e| PoolError::PoisonLock(e.to_string()))
+                        .map_err(|e| Error::PoisonLock(e.to_string()))
                 })
-                .map_err(|e| PoolError::PoisonLock(e.to_string()));
+                .map_err(|e| Error::PoisonLock(e.to_string()));
             let job_id = handle_result!(status_tx, handle_result!(status_tx, job_id_res));
 
             match job_id {
                 Ok(job_id) => {
                     let downstreams = self_
                         .safe_lock(|s| s.downstreams.clone())
-                        .map_err(|e| PoolError::PoisonLock(e.to_string()));
+                        .map_err(|e| Error::PoisonLock(e.to_string()));
                     let downstreams = handle_result!(status_tx, downstreams);
 
                     for (channel_id, downtream) in downstreams {
@@ -454,7 +444,7 @@ impl Pool {
         self_: Arc<Mutex<Self>>,
         rx: Receiver<NewTemplate<'static>>,
         sender_message_received_signal: Sender<()>,
-    ) -> PoolResult<()> {
+    ) -> Result<()> {
         let status_tx = self_.safe_lock(|s| s.status_tx.clone())?;
         let channel_factory = self_.safe_lock(|s| s.channel_factory.clone())?;
         while let Ok(mut new_template) = rx.recv().await {
@@ -465,13 +455,13 @@ impl Pool {
 
             let messages = channel_factory
                 .safe_lock(|cf| cf.on_new_template(&mut new_template))
-                .map_err(|e| PoolError::PoisonLock(e.to_string()));
+                .map_err(|e| Error::PoisonLock(e.to_string()));
             let messages = handle_result!(status_tx, messages);
             let mut messages = handle_result!(status_tx, messages);
 
             let downstreams = self_
                 .safe_lock(|s| s.downstreams.clone())
-                .map_err(|e| PoolError::PoisonLock(e.to_string()));
+                .map_err(|e| Error::PoisonLock(e.to_string()));
             let downstreams = handle_result!(status_tx, downstreams);
 
             for (channel_id, downtream) in downstreams {
@@ -486,7 +476,7 @@ impl Pool {
             }
             let res = self_
                 .safe_lock(|s| s.new_template_processed = true)
-                .map_err(|e| PoolError::PoisonLock(e.to_string()));
+                .map_err(|e| Error::PoisonLock(e.to_string()));
             handle_result!(status_tx, res);
 
             handle_result!(status_tx, sender_message_received_signal.send(()).await);
@@ -510,7 +500,7 @@ impl Pool {
             end: extranonce_len,
         };
         let ids = Arc::new(Mutex::new(roles_logic_sv2::utils::GroupId::new()));
-        let pool_coinbase_outputs = super::pool_config::get_coinbase_output(&config);
+        let pool_coinbase_outputs = pool_config::get_coinbase_output(&config);
         info!("PUB KEY: {:?}", pool_coinbase_outputs);
         let extranonces = ExtendedExtranonce::new(range_0, range_1, range_2);
         let creator = JobsCreators::new(extranonce_len as u8);
@@ -551,7 +541,7 @@ impl Pool {
                 }
                 if status_tx_clone_unenc
                     .send(status::Status {
-                        state: status::State::DownstreamShutdown(PoolError::ComponentShutdown(
+                        state: status::State::DownstreamShutdown(Error::ComponentShutdown(
                             "Downstream no longer accepting incoming connections".to_string(),
                         )),
                     })
@@ -571,7 +561,7 @@ impl Pool {
             }
             if status_tx_clone
                 .send(status::Status {
-                    state: status::State::DownstreamShutdown(PoolError::ComponentShutdown(
+                    state: status::State::DownstreamShutdown(Error::ComponentShutdown(
                         "Downstream no longer accepting incoming connections".to_string(),
                     )),
                 })
@@ -591,7 +581,7 @@ impl Pool {
             // on_new_prev_hash shutdown
             if status_tx_clone
                 .send(status::Status {
-                    state: status::State::DownstreamShutdown(PoolError::ComponentShutdown(
+                    state: status::State::DownstreamShutdown(Error::ComponentShutdown(
                         "Downstream no longer accepting new prevhash".to_string(),
                     )),
                 })
@@ -612,7 +602,7 @@ impl Pool {
             // on_new_template shutdown
             if status_tx_clone
                 .send(status::Status {
-                    state: status::State::DownstreamShutdown(PoolError::ComponentShutdown(
+                    state: status::State::DownstreamShutdown(Error::ComponentShutdown(
                         "Downstream no longer accepting templates".to_string(),
                     )),
                 })

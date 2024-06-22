@@ -1,7 +1,13 @@
+pub mod config;
 pub mod downstream_mining;
-pub mod error;
-pub mod proxy_config;
+mod error;
 pub mod upstream_mining;
+
+pub(crate) use error::{Error, Result};
+pub use error::{Error as ProxyError, Result as ProxyResult};
+
+pub(crate) use config::Config;
+pub use config::Config as ProxyConfig;
 
 use once_cell::sync::OnceCell;
 use roles_logic_sv2::{
@@ -100,7 +106,7 @@ pub enum ChannelKind {
 pub async fn initialize_r_logic(
     upstreams: &[UpstreamMiningValues],
     group_id: Arc<Mutex<GroupId>>,
-    config: proxy_config::ProxyConfig,
+    config: config::Config,
 ) -> RLogic {
     let channel_ids = Arc::new(Mutex::new(Id::new()));
     let mut upstream_mining_nodes = Vec::with_capacity(upstreams.len());

@@ -2,7 +2,7 @@ use super::UpstreamMiningValues;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct ProxyConfig {
+pub struct Config {
     pub upstreams: Vec<UpstreamMiningValues>,
     pub listen_address: String,
     pub listen_mining_port: u16,

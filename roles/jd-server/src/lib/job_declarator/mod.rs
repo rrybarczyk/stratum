@@ -1,7 +1,5 @@
 pub mod message_handler;
-use super::{
-    error::JdsError, jds_config::JdsConfig, mempool::JDsMempool, status, EitherFrame, StdFrame,
-};
+use super::{config, mempool::JDsMempool, status, Config, EitherFrame, Error, StdFrame};
 use async_channel::{Receiver, Sender};
 use binary_sv2::{B0255, U256};
 use codec_sv2::{Frame, HandshakeRole, Responder};
@@ -71,7 +69,7 @@ impl JobDeclaratorDownstream {
     pub fn new(
         receiver: Receiver<EitherFrame>,
         sender: Sender<EitherFrame>,
-        config: &JdsConfig,
+        config: &Config,
         mempool: Arc<Mutex<JDsMempool>>,
         sender_add_txs_to_mempool: Sender<AddTrasactionsToMempoolInner>,
     ) -> Self {
@@ -83,10 +81,9 @@ impl JobDeclaratorDownstream {
             known_transactions: vec![],
             unknown_transactions: vec![],
         };
-        super::jds_config::get_coinbase_output(config).expect("Invalid coinbase output in config")
-            [0]
-        .consensus_encode(&mut coinbase_output)
-        .expect("Invalid coinbase output in config");
+        config::get_coinbase_output(config).expect("Invalid coinbase output in config")[0]
+            .consensus_encode(&mut coinbase_output)
+            .expect("Invalid coinbase output in config");
 
         Self {
             receiver,
@@ -109,12 +106,12 @@ impl JobDeclaratorDownstream {
     fn get_block_hex(
         self_mutex: Arc<Mutex<Self>>,
         message: SubmitSolutionJd,
-    ) -> Result<String, Box<JdsError>> {
+    ) -> Result<String, Box<Error>> {
         let (last_declare_, _, _) = self_mutex
             .clone()
             .safe_lock(|x| x.declared_mining_job.clone())
-            .map_err(|e| Box::new(JdsError::PoisonLock(e.to_string())))?;
-        let last_declare = last_declare_.ok_or(Box::new(JdsError::NoLastDeclaredJob))?;
+            .map_err(|e| Box::new(Error::PoisonLock(e.to_string())))?;
+        let last_declare = last_declare_.ok_or(Box::new(Error::NoLastDeclaredJob))?;
         let transactions_list = Self::collect_txs_in_job(self_mutex)?;
         let block: Block =
             roles_logic_sv2::utils::BlockCreator::new(last_declare, transactions_list, message)
@@ -122,29 +119,29 @@ impl JobDeclaratorDownstream {
         Ok(hex::encode(serialize(&block)))
     }
 
-    fn collect_txs_in_job(self_mutex: Arc<Mutex<Self>>) -> Result<Vec<Transaction>, Box<JdsError>> {
+    fn collect_txs_in_job(self_mutex: Arc<Mutex<Self>>) -> Result<Vec<Transaction>, Box<Error>> {
         let (_, transactions_with_state, _) = self_mutex
             .clone()
             .safe_lock(|x| x.declared_mining_job.clone())
-            .map_err(|e| Box::new(JdsError::PoisonLock(e.to_string())))?;
+            .map_err(|e| Box::new(Error::PoisonLock(e.to_string())))?;
         let mempool = self_mutex
             .safe_lock(|x| x.mempool.clone())
-            .map_err(|e| Box::new(JdsError::PoisonLock(e.to_string())))?;
+            .map_err(|e| Box::new(Error::PoisonLock(e.to_string())))?;
         let mut transactions_list: Vec<Transaction> = Vec::new();
         for tx_with_state in transactions_with_state.iter().enumerate() {
             if let TransactionState::PresentInMempool(txid) = tx_with_state.1 {
                 let tx = mempool
                     .safe_lock(|x| x.mempool.get(txid).cloned())
-                    .map_err(|e| JdsError::PoisonLock(e.to_string()))?
-                    .ok_or(Box::new(JdsError::ImpossibleToReconstructBlock(
+                    .map_err(|e| Error::PoisonLock(e.to_string()))?
+                    .ok_or(Box::new(Error::ImpossibleToReconstructBlock(
                         "Txid not found in jds mempool".to_string(),
                     )))?
-                    .ok_or(Box::new(JdsError::ImpossibleToReconstructBlock(
+                    .ok_or(Box::new(Error::ImpossibleToReconstructBlock(
                         "Txid found in jds mempool but transactions not present".to_string(),
                     )))?;
                 transactions_list.push(tx);
             } else {
-                return Err(Box::new(JdsError::ImpossibleToReconstructBlock(
+                return Err(Box::new(Error::ImpossibleToReconstructBlock(
                     "Unknown transaction".to_string(),
                 )));
             };
@@ -206,7 +203,7 @@ impl JobDeclaratorDownstream {
                         let mut frame: StdFrame = handle_result!(tx_status, message.try_into());
                         let header = frame
                             .get_header()
-                            .ok_or_else(|| JdsError::Custom(String::from("No header set")));
+                            .ok_or_else(|| Error::Custom(String::from("No header set")));
                         let header = handle_result!(tx_status, header);
                         let message_type = header.msg_type();
                         let payload = frame.payload();
@@ -375,7 +372,7 @@ impl JobDeclaratorDownstream {
                                 error!("{:?}", e);
                                 handle_result!(
                                     tx_status,
-                                    Err(JdsError::Custom("Invalid message received".to_string()))
+                                    Err(Error::Custom("Invalid message received".to_string()))
                                 );
                                 recv.close();
                                 break;
@@ -383,7 +380,7 @@ impl JobDeclaratorDownstream {
                         }
                     }
                     Err(err) => {
-                        handle_result!(tx_status, Err(JdsError::ChannelRecv(err)));
+                        handle_result!(tx_status, Err(Error::ChannelRecv(err)));
                         break;
                     }
                 }
@@ -414,7 +411,7 @@ pub struct JobDeclarator {}
 
 impl JobDeclarator {
     pub async fn start(
-        config: JdsConfig,
+        config: Config,
         status_tx: crate::status::Sender,
         mempool: Arc<Mutex<JDsMempool>>,
         new_block_sender: Sender<String>,
@@ -434,7 +431,7 @@ impl JobDeclarator {
     }
     async fn accept_incoming_connection(
         _self_: Arc<Mutex<JobDeclarator>>,
-        config: JdsConfig,
+        config: Config,
         status_tx: crate::status::Sender,
         mempool: Arc<Mutex<JDsMempool>>,
         new_block_sender: Sender<String>,

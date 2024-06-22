@@ -1,8 +1,7 @@
+use super::super::{Error, Result};
 use crate::{
-    downstream_sv1,
-    error::TProxyResult,
-    status,
-    tproxy_config::{DownstreamDifficultyConfig, UpstreamDifficultyConfig},
+    config::{DownstreamDifficultyConfig, UpstreamDifficultyConfig},
+    downstream_sv1, status,
 };
 use async_channel::{bounded, Receiver, Sender};
 use async_std::{
@@ -22,7 +21,6 @@ use roles_logic_sv2::{
     utils::Mutex,
 };
 
-use crate::error::TProxyError;
 use futures::select;
 use tokio_util::codec::{FramedRead, LinesCodec};
 
@@ -181,7 +179,7 @@ impl Downstream {
                                 handle_result!(tx_status_reader, res);
                             }
                             Some(Err(_)) => {
-                                handle_result!(tx_status_reader, Err(TProxyError::Sv1MessageTooLong));
+                                handle_result!(tx_status_reader, Err(Error::Sv1MessageTooLong));
                             }
                             None => {
                                 handle_result!(tx_status_reader, Err(
@@ -375,7 +373,7 @@ impl Downstream {
     async fn handle_incoming_sv1(
         self_: Arc<Mutex<Self>>,
         message_sv1: json_rpc::Message,
-    ) -> Result<(), super::super::error::TProxyError<'static>> {
+    ) -> std::result::Result<(), Error<'static>> {
         // `handle_message` in `IsServer` trait + calls `handle_request`
         // TODO: Map err from V1Error to Error::V1Error
         let response = self_.safe_lock(|s| s.handle_message(message_sv1)).unwrap();
@@ -406,7 +404,7 @@ impl Downstream {
     pub(super) async fn send_message_downstream(
         self_: Arc<Mutex<Self>>,
         response: json_rpc::Message,
-    ) -> Result<(), async_channel::SendError<v1::Message>> {
+    ) -> std::result::Result<(), async_channel::SendError<v1::Message>> {
         let sender = self_.safe_lock(|s| s.tx_outgoing.clone()).unwrap();
         debug!("To DOWN: {:?}", response);
         sender.send(response).await
@@ -417,7 +415,7 @@ impl Downstream {
     pub(super) async fn send_message_upstream(
         self_: Arc<Mutex<Self>>,
         msg: DownstreamMessages,
-    ) -> TProxyResult<'static, ()> {
+    ) -> Result<'static, ()> {
         let sender = self_.safe_lock(|s| s.tx_sv1_bridge.clone()).unwrap();
         debug!("To Bridge: {:?}", msg);
         let _ = sender.send(msg).await;
@@ -564,7 +562,7 @@ impl IsServer<'static> for Downstream {
         self.version_rolling_min_bit = mask
     }
 
-    fn notify(&mut self) -> Result<json_rpc::Message, v1::error::Error> {
+    fn notify(&mut self) -> std::result::Result<json_rpc::Message, v1::error::Error> {
         unreachable!()
     }
 }

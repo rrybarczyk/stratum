@@ -6,33 +6,33 @@ use std::net::SocketAddr;
 pub type Message = PoolMessages<'static>;
 pub type EitherFrame = StandardEitherFrame<Message>;
 
-pub type ProxyResult<T> = core::result::Result<T, ProxyError>;
+pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 #[allow(clippy::enum_variant_names)]
-pub enum ProxyError {
-    ConfigError(config::ConfigError),
+pub enum Error {
+    ConfigError(ext_config::ConfigError),
     Io(std::io::Error),
     SendError(SendError<EitherFrame>),
     UpstreamNotAvailabe(SocketAddr),
     SetupConnectionError(String),
 }
 
-impl From<config::ConfigError> for ProxyError {
-    fn from(e: config::ConfigError) -> ProxyError {
-        ProxyError::ConfigError(e)
+impl From<ext_config::ConfigError> for Error {
+    fn from(e: ext_config::ConfigError) -> Error {
+        Error::ConfigError(e)
     }
 }
 
-impl From<std::io::Error> for ProxyError {
-    fn from(e: std::io::Error) -> ProxyError {
-        ProxyError::Io(e)
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Error {
+        Error::Io(e)
     }
 }
 
-impl From<SendError<EitherFrame>> for ProxyError {
+impl From<SendError<EitherFrame>> for Error {
     fn from(error: SendError<EitherFrame>) -> Self {
-        ProxyError::SendError(error)
+        Error::SendError(error)
     }
 }

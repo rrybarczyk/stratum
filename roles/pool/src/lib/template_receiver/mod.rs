@@ -1,5 +1,5 @@
 use super::{
-    error::{PoolError, PoolResult},
+    error::{Error, Result},
     mining_pool::{EitherFrame, StdFrame},
     status,
 };
@@ -44,7 +44,7 @@ impl TemplateRx {
         status_tx: status::Sender,
         coinbase_out_len: u32,
         expected_tp_authority_public_key: Option<Secp256k1PublicKey>,
-    ) -> PoolResult<()> {
+    ) -> Result<()> {
         let stream = TcpStream::connect(address).await?;
         info!("Connected to template distribution server at {}", address);
 
@@ -106,11 +106,11 @@ impl TemplateRx {
                 status_tx,
                 message_from_tp
                     .try_into()
-                    .map_err(|e| PoolError::Codec(codec_sv2::Error::FramingSv2Error(e)))
+                    .map_err(|e| Error::Codec(codec_sv2::Error::FramingSv2Error(e)))
             );
             let message_type_res = message_from_tp
                 .get_header()
-                .ok_or_else(|| PoolError::Custom(String::from("No header set")));
+                .ok_or_else(|| Error::Custom(String::from("No header set")));
             let message_type = handle_result!(status_tx, message_type_res).msg_type();
             let payload = message_from_tp.payload();
             let msg = handle_result!(
@@ -148,11 +148,11 @@ impl TemplateRx {
         }
     }
 
-    pub async fn send(self_: Arc<Mutex<Self>>, sv2_frame: StdFrame) -> PoolResult<()> {
+    pub async fn send(self_: Arc<Mutex<Self>>, sv2_frame: StdFrame) -> Result<()> {
         let either_frame = sv2_frame.into();
         let sender = self_
             .safe_lock(|self_| self_.sender.clone())
-            .map_err(|e| PoolError::PoisonLock(e.to_string()))?;
+            .map_err(|e| Error::PoisonLock(e.to_string()))?;
         sender.send(either_frame).await?;
         Ok(())
     }
@@ -161,7 +161,7 @@ impl TemplateRx {
         let status_tx = self_.safe_lock(|s| s.status_tx.clone()).unwrap();
         while let Ok(solution) = rx.recv().await {
             info!("Sending Solution to TP: {:?}", &solution);
-            let sv2_frame_res: Result<StdFrame, _> =
+            let sv2_frame_res: std::result::Result<StdFrame, _> =
                 PoolMessages::TemplateDistribution(TemplateDistribution::SubmitSolution(solution))
                     .try_into();
             match sv2_frame_res {

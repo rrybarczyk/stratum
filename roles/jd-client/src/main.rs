@@ -4,7 +4,8 @@ mod args;
 mod lib;
 
 use lib::{
-    job_declarator::JobDeclarator, status, template_receiver::TemplateRx, PoolChangerTrigger,
+    config, job_declarator::JobDeclarator, status, template_receiver::TemplateRx,
+    PoolChangerTrigger,
 };
 
 use async_channel::{bounded, unbounded};
@@ -186,7 +187,7 @@ async fn initialize_jd_as_solo_miner(
     timeout: Duration,
 ) {
     let proxy_config = args::process_cli_args().unwrap();
-    let miner_tx_out = lib::jdc_config::get_coinbase_output(&proxy_config).unwrap();
+    let miner_tx_out = config::get_coinbase_output(&proxy_config).unwrap();
 
     // When Downstream receive a share that meets bitcoin target it transformit in a
     // SubmitSolution and send it to the TemplateReceiver
@@ -238,7 +239,7 @@ async fn initialize_jd_as_solo_miner(
 async fn initialize_jd(
     tx_status: async_channel::Sender<status::Status<'static>>,
     task_collector: Arc<Mutex<Vec<AbortHandle>>>,
-    upstream_config: lib::jdc_config::Upstream,
+    upstream_config: config::Upstream,
     timeout: Duration,
 ) {
     let jdc_config = args::process_cli_args().unwrap();

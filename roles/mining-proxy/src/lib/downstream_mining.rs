@@ -1,11 +1,14 @@
 #![allow(dead_code)]
 
-use super::upstream_mining::{StdFrame as UpstreamFrame, UpstreamMiningNode};
-use async_channel::{Receiver, SendError, Sender};
+use super::{
+    upstream_mining::{ProxyRemoteSelector, StdFrame as UpstreamFrame, UpstreamMiningNode},
+    Result,
+};
+use async_channel::{Receiver, Sender};
 use roles_logic_sv2::{
     common_messages_sv2::{SetupConnection, SetupConnectionSuccess},
     common_properties::{CommonDownstreamData, IsDownstream, IsMiningDownstream},
-    errors::Error,
+    errors::Error as RolesLogicSv2Error,
     handlers::{
         common::{ParseDownstreamCommonMessages, SendTo as SendToCommon},
         mining::{ParseDownstreamMiningMessages, SendTo, SupportedChannelTypes},
@@ -300,10 +303,7 @@ impl DownstreamMiningNode {
     }
 
     /// Send a message downstream
-    pub async fn send(
-        self_mutex: Arc<Mutex<Self>>,
-        sv2_frame: StdFrame,
-    ) -> Result<(), SendError<StdFrame>> {
+    pub async fn send(self_mutex: Arc<Mutex<Self>>, sv2_frame: StdFrame) -> Result<()> {
         let either_frame = sv2_frame.into();
         let sender = self_mutex.safe_lock(|self_| self_.sender.clone()).unwrap();
         match sender.send(either_frame).await {
@@ -326,8 +326,6 @@ impl DownstreamMiningNode {
     }
 }
 
-use super::upstream_mining::ProxyRemoteSelector;
-
 /// It impl UpstreamMining cause the proxy act as an upstream node for the DownstreamMiningNode
 impl
     ParseDownstreamMiningMessages<
@@ -347,7 +345,7 @@ impl
     fn is_downstream_authorized(
         _self_mutex: Arc<Mutex<Self>>,
         _user_identity: &binary_sv2::Str0255,
-    ) -> Result<bool, Error> {
+    ) -> std::result::Result<bool, RolesLogicSv2Error> {
         Ok(true)
     }
 
@@ -355,7 +353,7 @@ impl
         &mut self,
         req: OpenStandardMiningChannel,
         up: Option<Arc<Mutex<UpstreamMiningNode>>>,
-    ) -> Result<SendTo<UpstreamMiningNode>, Error> {
+    ) -> std::result::Result<SendTo<UpstreamMiningNode>, RolesLogicSv2Error> {
         let channel_id = up
             .as_ref()
             .expect("No upstream initialized")
@@ -393,21 +391,21 @@ impl
     fn handle_open_extended_mining_channel(
         &mut self,
         _: OpenExtendedMiningChannel,
-    ) -> Result<SendTo<UpstreamMiningNode>, Error> {
+    ) -> std::result::Result<SendTo<UpstreamMiningNode>, RolesLogicSv2Error> {
         todo!()
     }
 
     fn handle_update_channel(
         &mut self,
         _: UpdateChannel,
-    ) -> Result<SendTo<UpstreamMiningNode>, Error> {
+    ) -> std::result::Result<SendTo<UpstreamMiningNode>, RolesLogicSv2Error> {
         todo!()
     }
 
     fn handle_submit_shares_standard(
         &mut self,
         m: SubmitSharesStandard,
-    ) -> Result<SendTo<UpstreamMiningNode>, Error> {
+    ) -> std::result::Result<SendTo<UpstreamMiningNode>, RolesLogicSv2Error> {
         // TODO maybe we want to check if shares meet target before
         // sending them upstream If that is the case it should be
         // done by GroupChannel not here
@@ -442,14 +440,14 @@ impl
     fn handle_submit_shares_extended(
         &mut self,
         _: SubmitSharesExtended,
-    ) -> Result<SendTo<UpstreamMiningNode>, Error> {
+    ) -> std::result::Result<SendTo<UpstreamMiningNode>, RolesLogicSv2Error> {
         todo!()
     }
 
     fn handle_set_custom_mining_job(
         &mut self,
         _: SetCustomMiningJob,
-    ) -> Result<SendTo<UpstreamMiningNode>, Error> {
+    ) -> std::result::Result<SendTo<UpstreamMiningNode>, RolesLogicSv2Error> {
         todo!()
     }
 }
@@ -462,8 +460,10 @@ impl
     fn handle_setup_connection(
         &mut self,
         _: SetupConnection,
-        result: Option<Result<(CommonDownstreamData, SetupConnectionSuccess), Error>>,
-    ) -> Result<roles_logic_sv2::handlers::common::SendTo, Error> {
+        result: Option<
+            std::result::Result<(CommonDownstreamData, SetupConnectionSuccess), RolesLogicSv2Error>,
+        >,
+    ) -> std::result::Result<roles_logic_sv2::handlers::common::SendTo, RolesLogicSv2Error> {
         let (data, message) = result.unwrap().unwrap();
         let upstream = match super::get_routing_logic() {
             roles_logic_sv2::routing_logic::MiningRoutingLogic::Proxy(proxy_routing) => {
